@@ -89,5 +89,7 @@ export interface MediaFilterOptions {
   year?: number;
   sortBy?: "popularity.desc" | "vote_average.desc" | "primary_release_date.desc";
   page?: number;
+  language?: string;
+  originCountry?: string;
 }
 

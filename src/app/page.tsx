@@ -1,10 +1,12 @@
-import React from "react";
 import {
   getTrending,
   getPopularMovies,
   getPopularTV,
   getTopRatedMovies,
   getTopRatedTV,
+  getBanglaMovies,
+  getHindiMovies,
+  getSouthIndianMovies,
 } from "@/lib/api/tmdb/client";
 import { HeroBanner } from "@/components/common/HeroBanner";
 import { MediaRow } from "@/components/common/MediaRow";
@@ -15,14 +17,25 @@ import { LiveTVSpotlight } from "@/components/iptv/LiveTVSpotlight";
 export const revalidate = 3600; // Revalidate home page every hour
 
 export default async function HomePage() {
-  const [trending, popularMovies, popularTV, topRatedMovies, topRatedTV] =
-    await Promise.all([
-      getTrending("all", "day"),
-      getPopularMovies(1),
-      getPopularTV(1),
-      getTopRatedMovies(1),
-      getTopRatedTV(1),
-    ]);
+  const [
+    trending,
+    banglaMovies,
+    hindiMovies,
+    southIndianMovies,
+    popularMovies,
+    popularTV,
+    topRatedMovies,
+    topRatedTV,
+  ] = await Promise.all([
+    getTrending("all", "day"),
+    getBanglaMovies(1),
+    getHindiMovies(1),
+    getSouthIndianMovies(1),
+    getPopularMovies(1),
+    getPopularTV(1),
+    getTopRatedMovies(1),
+    getTopRatedTV(1),
+  ]);
 
   const heroItem = trending[0] || popularMovies.items[0];
 
@@ -43,6 +56,33 @@ export default async function HomePage() {
         items={trending}
         viewAllHref="/movies"
       />
+
+      {/* Bangla Cinema */}
+      {banglaMovies.items.length > 0 && (
+        <MediaRow
+          title="🇧🇩 Bangla Cinema"
+          items={banglaMovies.items}
+          viewAllHref="/movies?language=bn"
+        />
+      )}
+
+      {/* Bollywood Cinema */}
+      {hindiMovies.items.length > 0 && (
+        <MediaRow
+          title="🇮🇳 Bollywood Cinema"
+          items={hindiMovies.items}
+          viewAllHref="/movies?language=hi"
+        />
+      )}
+
+      {/* South Indian Cinema */}
+      {southIndianMovies.items.length > 0 && (
+        <MediaRow
+          title="🇮🇳 South Indian Cinema"
+          items={southIndianMovies.items}
+          viewAllHref="/movies?language=south"
+        />
+      )}
 
       {/* Live TV Spotlight */}
       <LiveTVSpotlight />

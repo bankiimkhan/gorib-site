@@ -150,29 +150,70 @@ export function Header() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-zinc-800 bg-[#07090e]/95 backdrop-blur-xl px-4 pt-3 pb-6 space-y-2">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            return (
+        <div className="md:hidden border-b border-zinc-800 bg-[#07090e]/95 backdrop-blur-xl px-4 pt-3 pb-6 space-y-3">
+          {/* Mobile Search Form */}
+          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Search movies, TV shows, actors..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-900/90 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
+          </form>
+
+          <div className="space-y-1">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-base font-medium transition-colors ${
+                    isActive
+                      ? "bg-amber-500/10 text-amber-400 font-semibold"
+                      : "text-zinc-300 hover:bg-zinc-800/60 hover:text-white"
+                  }`}
+                >
+                  <span>{link.name}</span>
+                  {link.isLive && (
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-600/20 px-2 py-0.5 rounded-full border border-red-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                      LIVE
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Quick Regional Links */}
+          <div className="pt-2 border-t border-zinc-800/80">
+            <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1 mb-2">
+              Regional Cinema
+            </div>
+            <div className="flex flex-wrap gap-1.5">
               <Link
-                key={link.name}
-                href={link.href}
-                className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-base font-medium transition-colors ${
-                  isActive
-                    ? "bg-amber-500/10 text-amber-400 font-semibold"
-                    : "text-zinc-300 hover:bg-zinc-800/60 hover:text-white"
-                }`}
+                href="/movies?language=bn"
+                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
               >
-                <span>{link.name}</span>
-                {link.isLive && (
-                  <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-600/20 px-2 py-0.5 rounded-full border border-red-500/30">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                    LIVE
-                  </span>
-                )}
+                🇧🇩 Bangla
               </Link>
-            );
-          })}
+              <Link
+                href="/movies?language=hi"
+                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
+              >
+                🇮🇳 Hindi / Bollywood
+              </Link>
+              <Link
+                href="/movies?language=south"
+                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
+              >
+                🇮🇳 South Indian
+              </Link>
+            </div>
+          </div>
         </div>
       )}
     </header>

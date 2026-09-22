@@ -297,17 +297,27 @@ export async function searchMedia(
   };
 }
 
+function resolveOriginalLanguage(lang?: string): string | undefined {
+  if (!lang || lang === "all") return undefined;
+  if (lang === "south") return "te|ta|ml|kn";
+  return lang;
+}
+
 /**
- * Discovers movies by filter (genre, year, sort)
+ * Discovers movies by filter (genre, year, sort, language)
  */
 export async function discoverMovies(
   options: MediaFilterOptions
 ): Promise<MediaPageResult<MediaItem>> {
+  const langParam = resolveOriginalLanguage(options.language);
+
   const params: Record<string, string | number | undefined> = {
     page: options.page || 1,
     with_genres: options.genreId,
     primary_release_year: options.year,
     sort_by: options.sortBy || "popularity.desc",
+    with_original_language: langParam,
+    with_origin_country: options.originCountry,
   };
 
   const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", params, 3600);
@@ -334,16 +344,20 @@ export async function discoverMovies(
 }
 
 /**
- * Discovers TV shows by filter
+ * Discovers TV shows by filter (genre, year, sort, language)
  */
 export async function discoverTV(
   options: MediaFilterOptions
 ): Promise<MediaPageResult<TVShow>> {
+  const langParam = resolveOriginalLanguage(options.language);
+
   const params: Record<string, string | number | undefined> = {
     page: options.page || 1,
     with_genres: options.genreId,
     first_air_date_year: options.year,
     sort_by: options.sortBy || "popularity.desc",
+    with_original_language: langParam,
+    with_origin_country: options.originCountry,
   };
 
   const data = await tmdbFetch<TMDBPageResult<TMDBTVShow>>("/discover/tv", params, 3600);
@@ -367,6 +381,61 @@ export async function discoverTV(
     totalPages: Math.min(data.total_pages, 500),
     totalResults: data.total_results,
   };
+}
+
+/**
+ * Dedicated helper to fetch popular Bangla / Bangladeshi movies
+ */
+export async function getBanglaMovies(page = 1): Promise<MediaPageResult<MediaItem>> {
+  return discoverMovies({
+    language: "bn",
+    page,
+    sortBy: "popularity.desc",
+  });
+}
+
+/**
+ * Dedicated helper to fetch popular Hindi / Bollywood movies
+ */
+export async function getHindiMovies(page = 1): Promise<MediaPageResult<MediaItem>> {
+  return discoverMovies({
+    language: "hi",
+    page,
+    sortBy: "popularity.desc",
+  });
+}
+
+/**
+ * Dedicated helper to fetch popular South Indian movies (Telugu, Tamil, Malayalam, Kannada)
+ */
+export async function getSouthIndianMovies(page = 1): Promise<MediaPageResult<MediaItem>> {
+  return discoverMovies({
+    language: "south",
+    page,
+    sortBy: "popularity.desc",
+  });
+}
+
+/**
+ * Dedicated helper to fetch popular Bangla TV shows / Natok / Serials
+ */
+export async function getBanglaTV(page = 1): Promise<MediaPageResult<TVShow>> {
+  return discoverTV({
+    language: "bn",
+    page,
+    sortBy: "popularity.desc",
+  });
+}
+
+/**
+ * Dedicated helper to fetch popular Hindi TV shows & Web Series
+ */
+export async function getHindiTV(page = 1): Promise<MediaPageResult<TVShow>> {
+  return discoverTV({
+    language: "hi",
+    page,
+    sortBy: "popularity.desc",
+  });
 }
 
 /**

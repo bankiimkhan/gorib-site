@@ -8,20 +8,26 @@ import { MediaCard } from "@/components/common/MediaCard";
 import { SearchSkeleton } from "@/components/common/Skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useDebounce } from "@/lib/hooks/useDebounce";
-import { searchMedia } from "@/lib/api/tmdb/client";
-
 export function SearchClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialQuery = searchParams.get("q") || "";
+  const urlQuery = searchParams.get("q") || "";
 
-  const [inputVal, setInputVal] = useState(initialQuery);
+  const [inputVal, setInputVal] = useState(urlQuery);
   const debouncedQuery = useDebounce(inputVal, 400);
 
   const [filterType, setFilterType] = useState<"multi" | "movie" | "tv">("multi");
   const [results, setResults] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(Boolean(initialQuery));
+  const [hasSearched, setHasSearched] = useState(Boolean(urlQuery));
+
+  // Sync state if URL query changes externally (e.g. from header search)
+  useEffect(() => {
+    setInputVal(urlQuery);
+    if (urlQuery) {
+      setHasSearched(true);
+    }
+  }, [urlQuery]);
 
   // Sync URL when debounced query changes
   useEffect(() => {
@@ -34,7 +40,7 @@ export function SearchClient() {
     }
   }, [debouncedQuery, router]);
 
-  // Execute TMDB search
+  // Execute search via server-side /api/search route
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       setResults([]);
@@ -44,17 +50,26 @@ export function SearchClient() {
     }
 
     let isMounted = true;
+    const controller = new AbortController();
     setIsLoading(true);
     setHasSearched(true);
 
-    searchMedia(debouncedQuery.trim(), 1, filterType)
+    fetch(
+      `/api/search?q=${encodeURIComponent(debouncedQuery.trim())}&type=${filterType}`,
+      { signal: controller.signal }
+    )
       .then((res) => {
+        if (!res.ok) throw new Error("Search request failed");
+        return res.json();
+      })
+      .then((data) => {
         if (isMounted) {
-          setResults(res.items);
+          setResults(data.items || []);
           setIsLoading(false);
         }
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         console.error("Search error:", err);
         if (isMounted) {
           setResults([]);
@@ -64,6 +79,7 @@ export function SearchClient() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [debouncedQuery, filterType]);
 
