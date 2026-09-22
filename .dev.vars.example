@@ -1,0 +1,8 @@
+# Cloudflare Workers Local Development Secrets (.dev.vars)
+# Copy this file to .dev.vars for local testing with `pnpm preview` or `wrangler dev`
+# Do NOT commit .dev.vars to version control.
+
+TMDB_API_KEY=63bcc17f6066180c0dc10bbded74c140
+STREAMING_API_KEY=
+STREAMING_BASE_URL=
+

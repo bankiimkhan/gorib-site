@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gorib-site",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_SITE_NAME": "gorib.lol",
+    "NEXT_PUBLIC_SITE_URL": "https://gorib.lol",
+    "TMDB_BASE_URL": "https://api.themoviedb.org/3",
+    "TMDB_IMAGE_BASE_URL": "https://image.tmdb.org/t/p",
+    "STREAMING_PROVIDER": "mock",
+    "NEXT_PUBLIC_AD_SLOTS_ENABLED": "false"
+  }
+}
+
