@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import Hls from "hls.js";
 import {
   Play,
@@ -17,10 +18,9 @@ import {
   RefreshCw,
   SkipForward,
   Server,
-  ExternalLink,
   Download,
 } from "lucide-react";
-import { StreamSource, SubtitleTrack } from "@/types/streaming";
+import { StreamSource } from "@/types/streaming";
 import { formatPlayerTime } from "@/lib/utils/formatters";
 
 interface VideoPlayerProps {
@@ -52,6 +52,8 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hideControlsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const serverMenuRef = useRef<HTMLDivElement>(null);
 
   const [internalSourceIndex, setInternalSourceIndex] = useState(0);
   const activeSourceIndex = externalIndex !== undefined ? externalIndex : internalSourceIndex;
@@ -59,6 +61,8 @@ export function VideoPlayer({
   const currentSource: StreamSource | undefined = sources[activeSourceIndex] || sources[0];
 
   const handleSelectSource = (newIndex: number) => {
+    setHasError(false);
+    setErrorMessage("");
     if (onSourceChange) {
       onSourceChange(newIndex);
     } else {
@@ -85,15 +89,9 @@ export function VideoPlayer({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [hlsLevels, setHlsLevels] = useState<{ id: number; height: number; bitrate: number }[]>([]);
   const [activeQuality, setActiveQuality] = useState<number>(-1); // -1 is Auto
-  const [activeSubtitle, setActiveSubtitle] = useState<number>(-1); // -1 is Off
+  const activeSubtitle = -1; // -1 is Off
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
-
-  // Reset error when active source changes
-  useEffect(() => {
-    setHasError(false);
-    setErrorMessage("");
-  }, [activeSourceIndex, sources]);
 
   // Video initialization
   useEffect(() => {
@@ -263,7 +261,7 @@ export function VideoPlayer({
       video.muted = true;
       setIsMuted(true);
     }
-  }, [isMuted, volume]);
+  }, [isMuted, volume, setIsMuted]);
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
@@ -351,6 +349,11 @@ export function VideoPlayer({
           e.preventDefault();
           toggleMute();
           break;
+        case "escape":
+          setShowSettings(false);
+          setShowServerMenu(false);
+          setShowHelp(false);
+          break;
         case "?":
           e.preventDefault();
           setShowHelp((prev) => !prev);
@@ -361,6 +364,32 @@ export function VideoPlayer({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [togglePlay, seekRelative, toggleFullscreen, toggleMute]);
+
+  // Click outside listener for settings and server menus
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        showSettings &&
+        settingsRef.current &&
+        !settingsRef.current.contains(target)
+      ) {
+        setShowSettings(false);
+      }
+      if (
+        showServerMenu &&
+        serverMenuRef.current &&
+        !serverMenuRef.current.contains(target)
+      ) {
+        setShowServerMenu(false);
+      }
+    };
+
+    if (showSettings || showServerMenu) {
+      document.addEventListener("mousedown", handleDocumentClick);
+      return () => document.removeEventListener("mousedown", handleDocumentClick);
+    }
+  }, [showSettings, showServerMenu]);
 
   const showControlsTemporarily = () => {
     setControlsVisible(true);
@@ -630,19 +659,19 @@ export function VideoPlayer({
 
           <div className="flex items-center gap-3">
             {nextEpisodeUrl && (
-              <a
+              <Link
                 href={nextEpisodeUrl}
                 className="hidden sm:flex items-center gap-1.5 rounded-lg bg-zinc-800/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 transition-colors"
                 title="Play Next Episode"
               >
                 <SkipForward className="h-3.5 w-3.5" />
                 <span>Next Ep</span>
-              </a>
+              </Link>
             )}
 
             {/* In-player Server Menu Toggle */}
             {sources.length > 1 && (
-              <div className="relative">
+              <div ref={serverMenuRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setShowServerMenu((prev) => !prev)}
@@ -681,7 +710,7 @@ export function VideoPlayer({
             )}
 
             {/* Settings Trigger */}
-            <div className="relative">
+            <div ref={settingsRef} className="relative">
               <button
                 type="button"
                 onClick={() => setShowSettings((prev) => !prev)}

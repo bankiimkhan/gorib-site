@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { MediaType } from "@/types/media";
 
 export interface ContinueWatchingItem {
@@ -19,31 +19,71 @@ export interface ContinueWatchingItem {
 }
 
 const CONTINUE_WATCHING_KEY = "gorib_continue_watching";
+const CHANGE_EVENT = "gorib_continue_watching_change";
+
+let cachedRaw: string | null = null;
+let cachedItems: ContinueWatchingItem[] = [];
+
+function getSnapshot(): ContinueWatchingItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CONTINUE_WATCHING_KEY);
+    if (raw !== cachedRaw) {
+      cachedRaw = raw;
+      cachedItems = raw ? JSON.parse(raw) : [];
+    }
+    return cachedItems;
+  } catch {
+    return cachedItems;
+  }
+}
+
+const SERVER_SNAPSHOT: ContinueWatchingItem[] = [];
+function getServerSnapshot(): ContinueWatchingItem[] {
+  return SERVER_SNAPSHOT;
+}
+
+function subscribe(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  window.addEventListener(CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(CHANGE_EVENT, callback);
+  };
+}
+
+function notifyChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  }
+}
+
+const emptySubscribe = () => () => {};
 
 export function useContinueWatching() {
-  const [items, setItems] = useState<ContinueWatchingItem[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const isLoaded = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(CONTINUE_WATCHING_KEY);
-      if (stored) {
-        setItems(JSON.parse(stored));
+  const removeProgress = useCallback(
+    (tmdbId: number, season?: number, episode?: number) => {
+      const itemId =
+        season !== undefined && episode !== undefined
+          ? `tv-${tmdbId}-s${season}-e${episode}`
+          : `movie-${tmdbId}`;
+
+      try {
+        const current = getSnapshot();
+        const updated = current.filter((i) => i.id !== itemId);
+        localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(updated));
+        cachedRaw = null; // Invalidate cache
+        notifyChange();
+      } catch (err) {
+        console.error("Failed to remove continue watching item", err);
       }
-    } catch (err) {
-      console.error("Failed to load continue watching list", err);
-    } finally {
-      setIsLoaded(true);
-    }
-  }, []);
-
-  const saveItems = (newItems: ContinueWatchingItem[]) => {
-    try {
-      localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(newItems));
-    } catch (err) {
-      console.error("Failed to persist continue watching list", err);
-    }
-  };
+    },
+    []
+  );
 
   const saveProgress = useCallback(
     (data: {
@@ -87,30 +127,18 @@ export function useContinueWatching() {
         updatedAt: Date.now(),
       };
 
-      setItems((prev) => {
-        const filtered = prev.filter((i) => i.id !== itemId);
+      try {
+        const current = getSnapshot();
+        const filtered = current.filter((i) => i.id !== itemId);
         const updated = [item, ...filtered].slice(0, 20); // Keep latest 20
-        saveItems(updated);
-        return updated;
-      });
+        localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(updated));
+        cachedRaw = null; // Invalidate cache
+        notifyChange();
+      } catch (err) {
+        console.error("Failed to persist continue watching item", err);
+      }
     },
-    []
-  );
-
-  const removeProgress = useCallback(
-    (tmdbId: number, season?: number, episode?: number) => {
-      const itemId =
-        season !== undefined && episode !== undefined
-          ? `tv-${tmdbId}-s${season}-e${episode}`
-          : `movie-${tmdbId}`;
-
-      setItems((prev) => {
-        const updated = prev.filter((i) => i.id !== itemId);
-        saveItems(updated);
-        return updated;
-      });
-    },
-    []
+    [removeProgress]
   );
 
   const getSavedPosition = useCallback(
@@ -133,4 +161,3 @@ export function useContinueWatching() {
     getSavedPosition,
   };
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { MediaItem } from "@/types/media";
@@ -14,6 +14,28 @@ interface MediaRowProps {
 
 export function MediaRow({ title, items, viewAllHref }: MediaRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const updateScrollState = useCallback(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 15);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 15);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = rowRef.current;
+    if (!el) return;
+
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [updateScrollState, items]);
 
   if (!items || items.length === 0) return null;
 
@@ -27,18 +49,19 @@ export function MediaRow({ title, items, viewAllHref }: MediaRowProps) {
   };
 
   return (
-    <section className="relative my-8 px-4 sm:px-6 lg:px-8">
+    <section className="relative my-7 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-4 flex items-end justify-between">
+      <div className="mb-3.5 flex items-end justify-between">
         <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           {title}
         </h2>
         {viewAllHref && (
           <Link
             href={viewAllHref}
-            className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wider"
+            className="group flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wider"
           >
-            Explore All →
+            <span>Explore All</span>
+            <span className="transition-transform group-hover:translate-x-0.5">→</span>
           </Link>
         )}
       </div>
@@ -46,24 +69,26 @@ export function MediaRow({ title, items, viewAllHref }: MediaRowProps) {
       {/* Slider Container */}
       <div className="group relative">
         {/* Left Arrow */}
-        <button
-          type="button"
-          onClick={() => handleScroll("left")}
-          className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2 z-30 hidden group-hover:flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white shadow-xl backdrop-blur-md border border-zinc-800 hover:bg-amber-500 hover:text-black transition-all"
-          aria-label={`Scroll ${title} left`}
-        >
-          <ChevronLeft className="h-6 w-6" />
-        </button>
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => handleScroll("left")}
+            className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/85 text-white shadow-2xl backdrop-blur-md border border-white/10 hover:bg-amber-500 hover:text-black hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+            aria-label={`Scroll ${title} left`}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
 
-        {/* Scrollable Track */}
+        {/* Scrollable Snap Track */}
         <div
           ref={rowRef}
-          className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth pb-4 pt-1"
+          className="no-scrollbar flex gap-3.5 sm:gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-3 pt-1"
         >
           {items.map((item, idx) => (
             <div
               key={item.id}
-              className="w-36 sm:w-44 md:w-48 lg:w-52 flex-shrink-0"
+              className="w-36 sm:w-44 md:w-48 lg:w-52 flex-shrink-0 snap-start"
             >
               <MediaCard item={item} priority={idx < 4} />
             </div>
@@ -71,16 +96,17 @@ export function MediaRow({ title, items, viewAllHref }: MediaRowProps) {
         </div>
 
         {/* Right Arrow */}
-        <button
-          type="button"
-          onClick={() => handleScroll("right")}
-          className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2 z-30 hidden group-hover:flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white shadow-xl backdrop-blur-md border border-zinc-800 hover:bg-amber-500 hover:text-black transition-all"
-          aria-label={`Scroll ${title} right`}
-        >
-          <ChevronRight className="h-6 w-6" />
-        </button>
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => handleScroll("right")}
+            className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/85 text-white shadow-2xl backdrop-blur-md border border-white/10 hover:bg-amber-500 hover:text-black hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+            aria-label={`Scroll ${title} right`}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
       </div>
     </section>
   );
 }
-

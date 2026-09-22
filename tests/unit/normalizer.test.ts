@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeMovie,
-  normalizeTVShow,
   normalizeMovieDetails,
   normalizeSeasonDetails,
 } from "@/lib/api/tmdb/normalizer";
-import { TMDBMovie, TMDBMovieDetails, TMDBSeasonDetails, TMDBTVShow } from "@/types/tmdb";
+import { TMDBMovie, TMDBMovieDetails, TMDBSeasonDetails } from "@/types/tmdb";
 
 describe("TMDB Normalizer", () => {
   it("normalizes a raw TMDB movie accurately", () => {

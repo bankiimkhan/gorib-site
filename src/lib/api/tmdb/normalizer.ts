@@ -13,7 +13,6 @@ import {
   TMDBMovieDetails,
   TMDBTVDetails,
   TMDBSeasonDetails,
-  TMDBEpisode,
   TMDBGenre,
 } from "@/types/tmdb";
 import { getBackdropUrl, getPosterUrl, getProfileUrl } from "@/lib/utils/images";

@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Netflix sets type in the proprietary "Netflix Sans"; Inter is the closest
+// open substitute and sits in front of Netflix's own Helvetica fallback chain.
+const netflixSans = Inter({
+  variable: "--font-netflix-sans",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const viewport = {
@@ -39,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${netflixSans.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col bg-[#07090e] text-zinc-100 selection:bg-amber-500 selection:text-black">
         <Header />

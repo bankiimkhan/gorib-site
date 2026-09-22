@@ -15,6 +15,7 @@ interface MediaCardProps {
 
 export function MediaCard({ item, priority = false }: MediaCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
   const isBookmarked = isInWatchlist(item.id);
 
@@ -24,17 +25,20 @@ export function MediaCard({ item, priority = false }: MediaCardProps) {
   return (
     <div className="group relative flex flex-col transition-all duration-300">
       {/* Poster Container */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md ring-1 ring-white/5 transition-all duration-300 group-hover:scale-[1.03] group-hover:shadow-xl group-hover:shadow-amber-500/10 group-hover:ring-amber-500/50">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md ring-1 ring-white/10 transition-all duration-300 group-hover:scale-[1.025] group-hover:shadow-2xl group-hover:shadow-amber-500/10 group-hover:ring-amber-500/40">
         <Link href={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${item.title}`}>
           {item.posterUrl && !imageError ? (
             <Image
               src={item.posterUrl}
               alt={item.title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+              sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 16vw"
               priority={priority}
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
+              className={`object-cover transition-all duration-500 group-hover:scale-105 ${
+                imageLoaded || priority ? "opacity-100" : "opacity-0"
+              }`}
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 p-4 text-center">
@@ -46,23 +50,44 @@ export function MediaCard({ item, priority = false }: MediaCardProps) {
 
         {/* Rating Badge */}
         {item.rating !== undefined && item.rating > 0 && (
-          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-amber-400 backdrop-blur-md">
+          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 backdrop-blur-md border border-white/5">
             <Star className="h-3 w-3 fill-amber-400" />
             <span>{formatRating(item.rating)}</span>
           </div>
         )}
 
-        {/* Media Type Badge */}
-        <div className="absolute top-2 right-2 z-20 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-300 backdrop-blur-md">
-          {item.type}
+        {/* Media Type & Mobile Watchlist Header */}
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
+          {/* Mobile direct bookmark tap target */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleWatchlist(item);
+            }}
+            className={`flex sm:hidden h-6 w-6 items-center justify-center rounded-md backdrop-blur-md transition-colors ${
+              isBookmarked
+                ? "bg-amber-500 text-black"
+                : "bg-black/60 text-zinc-300 hover:text-white"
+            }`}
+            title={isBookmarked ? "Remove from My List" : "Add to My List"}
+            aria-label={isBookmarked ? "Remove from My List" : "Add to My List"}
+          >
+            <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? "fill-black" : ""}`} />
+          </button>
+
+          <span className="rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-300 backdrop-blur-md border border-white/5">
+            {item.type}
+          </span>
         </div>
 
-        {/* Hover Quick Actions Overlay */}
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end bg-gradient-to-t from-black via-black/40 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto">
+        {/* Hover Quick Actions Overlay (Desktop) */}
+        <div className="pointer-events-none absolute inset-0 z-20 hidden sm:flex flex-col justify-end bg-gradient-to-t from-black/95 via-black/40 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto">
           <div className="flex items-center justify-between gap-2">
             <Link
               href={watchUrl}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-500 py-2 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-md"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-500 py-2 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-md active:scale-95"
               aria-label={`Play ${item.title}`}
             >
               <Play className="h-3.5 w-3.5 fill-black" />
@@ -76,7 +101,7 @@ export function MediaCard({ item, priority = false }: MediaCardProps) {
                 e.stopPropagation();
                 toggleWatchlist(item);
               }}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-90 ${
                 isBookmarked
                   ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
                   : "border-zinc-700 bg-black/60 text-white hover:bg-zinc-800"
@@ -91,17 +116,17 @@ export function MediaCard({ item, priority = false }: MediaCardProps) {
       </div>
 
       {/* Info Title & Year */}
-      <div className="mt-2.5 space-y-0.5 px-0.5">
+      <div className="mt-2 space-y-0.5 px-0.5">
         <Link href={detailUrl} className="focus:outline-none">
-          <h3 className="text-sm font-semibold text-zinc-100 line-clamp-1 group-hover:text-amber-400 transition-colors">
+          <h3 className="text-xs sm:text-sm font-semibold text-zinc-100 line-clamp-1 group-hover:text-amber-400 transition-colors">
             {item.title}
           </h3>
         </Link>
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
           <span>{item.year || "N/A"}</span>
           {item.genres && item.genres.length > 0 && (
             <>
-              <span>•</span>
+              <span className="text-zinc-600">•</span>
               <span className="line-clamp-1">{item.genres[0].name}</span>
             </>
           )}
@@ -110,4 +135,3 @@ export function MediaCard({ item, priority = false }: MediaCardProps) {
     </div>
   );
 }
-

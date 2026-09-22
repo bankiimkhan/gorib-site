@@ -6,7 +6,7 @@ import { TV_GENRES } from "@/lib/api/tmdb/genres";
 import { MediaCard } from "@/components/common/MediaCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "TV Shows Catalog",
@@ -19,9 +19,9 @@ interface TVPageProps {
 
 const REGIONAL_TV_FILTERS = [
   { id: "all", label: "All Series" },
-  { id: "bn", label: "🇧🇩 Bangla Natok & Serials" },
-  { id: "hi", label: "🇮🇳 Hindi & Indian Series" },
-  { id: "en", label: "🎬 International" },
+  { id: "bn", label: "Bangla Natok & Serials" },
+  { id: "hi", label: "Hindi & Indian Series" },
+  { id: "en", label: "International" },
 ];
 
 export default async function TVPage({ searchParams }: TVPageProps) {
@@ -29,14 +29,14 @@ export default async function TVPage({ searchParams }: TVPageProps) {
 
   const genreId = resolvedParams.genre ? parseInt(String(resolvedParams.genre), 10) : undefined;
   const year = resolvedParams.year ? parseInt(String(resolvedParams.year), 10) : undefined;
-  const sortBy = (resolvedParams.sort as any) || "popularity.desc";
+  const sortBy = (resolvedParams.sort as string) || "popularity.desc";
   const page = resolvedParams.page ? parseInt(String(resolvedParams.page), 10) : 1;
   const language = resolvedParams.language ? String(resolvedParams.language) : undefined;
 
   const result = await discoverTV({
     genreId,
     year,
-    sortBy,
+    sortBy: sortBy as "popularity.desc" | "vote_average.desc",
     page,
     language,
   });
@@ -59,8 +59,12 @@ export default async function TVPage({ searchParams }: TVPageProps) {
     return q ? `/tv?${q}` : "/tv";
   };
 
-  const activeLangLabel =
-    REGIONAL_TV_FILTERS.find((f) => f.id === (language || "all"))?.label || "All Series";
+  const activeGenre = TV_GENRES.find((g) => g.id === genreId);
+  const activeGenreName = activeGenre?.name;
+  const activeLangFilter = REGIONAL_TV_FILTERS.find((f) => f.id === (language || "all"));
+  const hasActiveFilters = Boolean(
+    (language && language !== "all") || genreId || year || (sortBy && sortBy !== "popularity.desc")
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-16">
@@ -79,13 +83,13 @@ export default async function TVPage({ searchParams }: TVPageProps) {
           <SlidersHorizontal className="h-3.5 w-3.5 text-amber-500" />
           <Link
             href={buildQuery({ sort: "popularity.desc", page: 1 })}
-            className={`px-1.5 py-0.5 rounded ${sortBy === "popularity.desc" ? "text-amber-400 font-bold" : "hover:text-white"}`}
+            className={`px-2.5 py-0.5 rounded transition-colors ${sortBy === "popularity.desc" ? "text-amber-400 font-bold bg-amber-500/10" : "hover:text-white"}`}
           >
             Popular
           </Link>
           <Link
             href={buildQuery({ sort: "vote_average.desc", page: 1 })}
-            className={`px-1.5 py-0.5 rounded ${sortBy === "vote_average.desc" ? "text-amber-400 font-bold" : "hover:text-white"}`}
+            className={`px-2.5 py-0.5 rounded transition-colors ${sortBy === "vote_average.desc" ? "text-amber-400 font-bold bg-amber-500/10" : "hover:text-white"}`}
           >
             Top Rated
           </Link>
@@ -94,7 +98,7 @@ export default async function TVPage({ searchParams }: TVPageProps) {
 
       {/* Industry / Language Filter Tabs */}
       <div className="mb-4">
-        <div className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">
+        <div className="text-[11px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">
           Filter by Industry / Language
         </div>
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-2">
@@ -106,7 +110,7 @@ export default async function TVPage({ searchParams }: TVPageProps) {
                 href={buildQuery({ language: rf.id === "all" ? undefined : rf.id, page: 1 })}
                 className={`flex-shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                   isSelected
-                    ? "bg-amber-500 text-black shadow-lg shadow-amber-500/25 scale-[1.02]"
+                    ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]"
                     : "bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800"
                 }`}
               >
@@ -118,7 +122,7 @@ export default async function TVPage({ searchParams }: TVPageProps) {
       </div>
 
       {/* Genre Pills */}
-      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-4 mb-6">
+      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-3 mb-6">
         <Link
           href={buildQuery({ genre: undefined, page: 1 })}
           className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
@@ -146,19 +150,57 @@ export default async function TVPage({ searchParams }: TVPageProps) {
 
       <AdSlot placement="home-top" />
 
-      {/* Active filters status */}
-      {language && (
-        <div className="mb-4 flex items-center justify-between text-xs text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-2.5">
-          <div>
-            Showing: <span className="font-bold text-amber-400">{activeLangLabel}</span>
-            {genreId && <span> • Genre ID {genreId}</span>}
-            {year && <span> • Year {year}</span>}
+      {/* Active filters status banner */}
+      {hasActiveFilters && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-xs bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-2.5 backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-zinc-500">Active Filters:</span>
+            {language && language !== "all" && (
+              <Link
+                href={buildQuery({ language: undefined, page: 1 })}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                title="Remove language filter"
+              >
+                <span>{activeLangFilter?.label}</span>
+                <X className="h-3 w-3" />
+              </Link>
+            )}
+            {activeGenreName && (
+              <Link
+                href={buildQuery({ genre: undefined, page: 1 })}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                title="Remove genre filter"
+              >
+                <span>Genre: {activeGenreName}</span>
+                <X className="h-3 w-3" />
+              </Link>
+            )}
+            {year && (
+              <Link
+                href={buildQuery({ year: undefined, page: 1 })}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                title="Remove year filter"
+              >
+                <span>Year: {year}</span>
+                <X className="h-3 w-3" />
+              </Link>
+            )}
+            {sortBy && sortBy !== "popularity.desc" && (
+              <Link
+                href={buildQuery({ sort: undefined, page: 1 })}
+                className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 border border-zinc-700 px-2.5 py-1 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                title="Reset sort"
+              >
+                <span>Sorted by: Top Rated</span>
+                <X className="h-3 w-3" />
+              </Link>
+            )}
           </div>
           <Link
             href="/tv"
-            className="text-amber-500 hover:underline font-semibold"
+            className="text-amber-500 hover:text-amber-400 font-semibold transition-colors"
           >
-            Reset Filters
+            Reset All
           </Link>
         </div>
       )}
@@ -185,18 +227,18 @@ export default async function TVPage({ searchParams }: TVPageProps) {
           {page > 1 && (
             <Link
               href={buildQuery({ page: page - 1 })}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors shadow-sm"
             >
               Previous Page
             </Link>
           )}
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-zinc-500 font-medium">
             Page {page} of {result.totalPages}
           </span>
           {page < result.totalPages && (
             <Link
               href={buildQuery({ page: page + 1 })}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors shadow-sm"
             >
               Next Page
             </Link>
@@ -206,4 +248,3 @@ export default async function TVPage({ searchParams }: TVPageProps) {
     </div>
   );
 }
-

@@ -20,7 +20,7 @@ export interface IPTVCategory {
 export interface IPTVCountry {
   code: string;
   name: string;
-  flag: string;
+  flag?: string;
 }
 
 export interface IPTVChannelsResponse {

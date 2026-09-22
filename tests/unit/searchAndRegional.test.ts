@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { GET as searchRoute } from "@/app/api/search/route";
 import {
   discoverMovies,
-  discoverTV,
   getBanglaMovies,
   getHindiMovies,
   getSouthIndianMovies,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { IPTVChannel, IPTVCategory, IPTVCountry } from "@/types/iptv";
 import { StreamSource } from "@/types/streaming";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
@@ -14,10 +14,10 @@ import {
   ChevronRight,
   ChevronLeft,
   RefreshCw,
-  SlidersHorizontal,
   Radio,
   ExternalLink,
   Check,
+  X,
 } from "lucide-react";
 
 interface LiveTVClientProps {
@@ -39,11 +39,20 @@ export function LiveTVClient({
   const [selectedCountry, setSelectedCountry] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadedFilters, setLoadedFilters] = useState<{
+    country: string;
+    category: string;
+  }>({ country: "all", category: "all" });
   const [copied, setCopied] = useState<boolean>(false);
   const [useProxy, setUseProxy] = useState<boolean>(false);
 
+  const isFirstMount = useRef(true);
   const { favorites, isFavorite, toggleFavorite } = useLiveTVFavorites();
+
+  const isLoading =
+    selectedCategory !== "favorites" &&
+    (selectedCountry !== loadedFilters.country ||
+      selectedCategory !== loadedFilters.category);
 
   // Parse URL search params on mount to pick channel or filters
   useEffect(() => {
@@ -53,25 +62,35 @@ export function LiveTVClient({
     const country = params.get("country");
     const category = params.get("category");
 
-    if (country) setSelectedCountry(country);
-    if (category) setSelectedCategory(category);
-
-    if (channelId) {
-      const match = initialChannels.find((c) => c.id === channelId);
-      if (match) {
-        setActiveChannel(match);
-      }
+    if (country || category || channelId) {
+      const timer = setTimeout(() => {
+        if (country) setSelectedCountry(country);
+        if (category) setSelectedCategory(category);
+        if (channelId) {
+          const match = initialChannels.find((c) => c.id === channelId);
+          if (match) {
+            setActiveChannel(match);
+          }
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [initialChannels]);
 
-  // Fetch channels when country or category changes
+  // Fetch channels when country or category changes, skipping redundant first fetch
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (selectedCountry === "all" && selectedCategory === "all") {
+        return;
+      }
+    }
+
     if (selectedCategory === "favorites") {
       return; // Handled client-side from favorites
     }
 
     let isMounted = true;
-    setIsLoading(true);
 
     const params = new URLSearchParams();
     if (selectedCountry !== "all") params.set("country", selectedCountry);
@@ -81,28 +100,31 @@ export function LiveTVClient({
     fetch(`/api/iptv/channels?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        if (isMounted && data.channels) {
-          setChannels(data.channels);
-          // If activeChannel is not in the new list, pick the first one
-          if (
-            data.channels.length > 0 &&
-            !data.channels.some((c: IPTVChannel) => c.id === activeChannel?.id)
-          ) {
-            setActiveChannel(data.channels[0]);
+        if (isMounted) {
+          if (data.channels) {
+            setChannels(data.channels);
+            // If activeChannel is not in the new list, pick the first one
+            if (
+              data.channels.length > 0 &&
+              !data.channels.some((c: IPTVChannel) => c.id === activeChannel?.id)
+            ) {
+              setActiveChannel(data.channels[0]);
+            }
           }
+          setLoadedFilters({ country: selectedCountry, category: selectedCategory });
         }
       })
       .catch((err) => {
         console.error("Error fetching channels:", err);
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setLoadedFilters({ country: selectedCountry, category: selectedCategory });
+        }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [selectedCountry, selectedCategory]);
+  }, [selectedCountry, selectedCategory, activeChannel?.id]);
 
   // Handle selecting a channel
   const handleSelectChannel = (channel: IPTVChannel) => {
@@ -200,13 +222,13 @@ export function LiveTVClient({
 
   // Popular Country pills
   const popularCountryPills = [
-    { code: "all", name: "All", flag: "🌍" },
-    { code: "bd", name: "Bangladesh", flag: "🇧🇩" },
-    { code: "in", name: "India", flag: "🇮🇳" },
-    { code: "us", name: "USA", flag: "🇺🇸" },
-    { code: "uk", name: "UK", flag: "🇬🇧" },
-    { code: "ca", name: "Canada", flag: "🇨🇦" },
-    { code: "au", name: "Australia", flag: "🇦🇺" },
+    { code: "all", name: "All" },
+    { code: "bd", name: "Bangladesh" },
+    { code: "in", name: "India" },
+    { code: "us", name: "USA" },
+    { code: "uk", name: "UK" },
+    { code: "ca", name: "Canada" },
+    { code: "au", name: "Australia" },
   ];
 
   return (
@@ -215,7 +237,7 @@ export function LiveTVClient({
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600/20 text-red-500 border border-red-500/30">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-600/20 text-red-500 border border-red-500/30">
               <Radio className="h-4 w-4 animate-pulse" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -237,7 +259,7 @@ export function LiveTVClient({
       {/* Main Grid: Cinema Player Theater */}
       {activeChannel && (
         <div className="mb-10 space-y-4">
-          <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-zinc-800">
+          <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
             <VideoPlayer
               key={streamUrl}
               title={activeChannel.name}
@@ -247,10 +269,11 @@ export function LiveTVClient({
           </div>
 
           {/* Active Channel Details Bar */}
-          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4 backdrop-blur-md flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-4 backdrop-blur-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-950 border border-zinc-800 p-2 overflow-hidden flex-shrink-0">
                 {activeChannel.logo ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={activeChannel.logo}
                     alt={activeChannel.name}
@@ -263,7 +286,7 @@ export function LiveTVClient({
 
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-white">{activeChannel.name}</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white">{activeChannel.name}</h2>
                   <span className="flex items-center gap-1 rounded-full bg-red-600/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30 uppercase tracking-wide">
                     <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                     LIVE
@@ -380,7 +403,7 @@ export function LiveTVClient({
       {/* Channel Guide & Exploration Section */}
       <div className="space-y-6">
         {/* Filter Controls Bar */}
-        <div className="rounded-2xl border border-zinc-800 bg-[#07090e]/80 p-4 sm:p-5 backdrop-blur-md space-y-4 shadow-xl">
+        <div className="rounded-2xl border border-white/5 bg-[#07090e]/80 p-4 sm:p-5 backdrop-blur-xl space-y-4 shadow-xl">
           {/* Top row: Search input + Country Pills */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* Search Input */}
@@ -390,25 +413,34 @@ export function LiveTVClient({
                 placeholder="Search live channels..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900/90 px-4 py-2 pl-10 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-xl border border-zinc-700/80 bg-zinc-900/90 px-4 py-2 pl-10 pr-9 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
               <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-zinc-400" />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-2.5 text-zinc-400 hover:text-white"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
-            {/* Quick Country Pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            {/* Quick Country Pills (Horizontally scrollable on mobile) */}
+            <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1">
               {popularCountryPills.map((cp) => (
                 <button
                   key={cp.code}
                   type="button"
                   onClick={() => setSelectedCountry(cp.code)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                  className={`flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                     selectedCountry === cp.code
                       ? "bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20"
                       : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-white"
                   }`}
                 >
-                  <span>{cp.flag}</span>
                   <span>{cp.name}</span>
                 </button>
               ))}
@@ -417,7 +449,7 @@ export function LiveTVClient({
               <select
                 value={selectedCountry}
                 onChange={(e) => setSelectedCountry(e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-800/80 px-2.5 py-1.5 text-xs font-medium text-zinc-300 focus:border-amber-500 focus:outline-none"
+                className="flex-shrink-0 rounded-lg border border-zinc-700 bg-zinc-800/80 px-2.5 py-1.5 text-xs font-medium text-zinc-300 focus:border-amber-500 focus:outline-none"
               >
                 <option value="all">More Countries...</option>
                 {countries
@@ -427,7 +459,7 @@ export function LiveTVClient({
                   )
                   .map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.flag} {c.name}
+                      {c.name}
                     </option>
                   ))}
               </select>
@@ -435,7 +467,7 @@ export function LiveTVClient({
           </div>
 
           {/* Bottom row: Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
             {/* Favorites Tab */}
             <button
               type="button"

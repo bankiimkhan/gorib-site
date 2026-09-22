@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { IPTVChannel } from "@/types/iptv";
-import { Star, Tv, Radio } from "lucide-react";
+import { Star } from "lucide-react";
 
 interface ChannelCardProps {
   channel: IPTVChannel;
@@ -22,13 +22,14 @@ export function ChannelCard({
   const [logoFailed, setLogoFailed] = useState(false);
 
   // Generate fallback initials
-  const initials = channel.name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "TV";
+  const initials =
+    channel.name
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "TV";
 
   return (
     <div
@@ -42,6 +43,7 @@ export function ChannelCard({
       {/* Channel Logo / Fallback Badge */}
       <div className="relative flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-xl bg-zinc-950 border border-zinc-800 p-1.5 overflow-hidden group-hover:scale-105 transition-transform">
         {channel.logo && !logoFailed ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={channel.logo}
             alt={channel.name}
@@ -111,7 +113,7 @@ export function ChannelCard({
         className={`p-2 rounded-lg transition-colors ${
           isFavorite
             ? "text-amber-400 hover:text-amber-300"
-            : "text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 focus:opacity-100"
+            : "text-zinc-500 hover:text-zinc-300 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
         }`}
         title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
         aria-label={isFavorite ? "Remove favorite channel" : "Add favorite channel"}
@@ -121,4 +123,3 @@ export function ChannelCard({
     </div>
   );
 }
-

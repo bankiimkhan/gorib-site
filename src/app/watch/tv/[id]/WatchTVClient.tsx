@@ -2,13 +2,15 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { TVShow, Season } from "@/types/media";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { TVShow, Season, MediaItem } from "@/types/media";
 import { StreamResult } from "@/types/streaming";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { ServerSelector } from "@/components/player/ServerSelector";
 import { useContinueWatching } from "@/lib/hooks/useContinueWatching";
-import { ArrowLeft, SkipForward, Play } from "lucide-react";
-import Image from "next/image";
+import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { ArrowLeft, SkipForward, Play, Bookmark, Check } from "lucide-react";
 
 interface WatchTVClientProps {
   tvShow: TVShow;
@@ -25,8 +27,11 @@ export function WatchTVClient({
   streamResult,
   seasonData,
 }: WatchTVClientProps) {
+  const router = useRouter();
   const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const { saveProgress, getSavedPosition } = useContinueWatching();
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
+  const isBookmarked = isInWatchlist(tvShow.id);
 
   const currentEpData = seasonData?.episodes?.find((e) => e.episodeNumber === episode);
   const totalEpsInSeason = seasonData?.episodes?.length || 1;
@@ -53,7 +58,7 @@ export function WatchTVClient({
 
   const handleEnded = () => {
     if (nextEpisodeUrl) {
-      window.location.href = nextEpisodeUrl;
+      router.push(nextEpisodeUrl);
     }
   };
 
@@ -63,7 +68,7 @@ export function WatchTVClient({
       <div className="mb-4 flex items-center justify-between">
         <Link
           href={`/tv/${tvShow.tmdbId}`}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Back to {tvShow.title}</span>
@@ -74,7 +79,7 @@ export function WatchTVClient({
       </div>
 
       {/* Dominant Video Player */}
-      <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-zinc-800">
+      <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
         <VideoPlayer
           title={`${tvShow.title} - S${season}:E${episode} ${currentEpData?.title || ""}`}
           sources={streamResult.sources}
@@ -96,10 +101,10 @@ export function WatchTVClient({
       />
 
       {/* Episode Header & Info */}
-      <div className="mt-8 flex flex-col md:flex-row md:items-start md:justify-between gap-6 pb-8 border-b border-zinc-800">
+      <div className="mt-8 flex flex-col md:flex-row md:items-start md:justify-between gap-6 pb-8 border-b border-white/5">
         <div className="space-y-3 max-w-3xl">
           <div className="flex items-center gap-2 text-xs">
-            <span className="rounded bg-amber-500/20 px-2.5 py-0.5 font-bold text-amber-400 border border-amber-500/30">
+            <span className="rounded-md bg-amber-500/20 px-2.5 py-0.5 font-bold text-amber-400 border border-amber-500/30">
               Season {season} Episode {episode}
             </span>
             {currentEpData?.airDate && (
@@ -116,25 +121,41 @@ export function WatchTVClient({
           </p>
         </div>
 
-        {/* Next Episode CTA Button */}
-        {hasNextEpisode && (
-          <Link
-            href={nextEpisodeUrl!}
-            className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
+        <div className="flex items-center gap-2.5">
+          {/* Next Episode CTA Button */}
+          {hasNextEpisode && (
+            <Link
+              href={nextEpisodeUrl!}
+              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20 active:scale-95"
+            >
+              <SkipForward className="h-4 w-4 fill-black" />
+              <span>Next: Ep {episode + 1}</span>
+            </Link>
+          )}
+
+          {/* Watchlist Toggle */}
+          <button
+            type="button"
+            onClick={() => toggleWatchlist(tvShow as unknown as MediaItem)}
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition-colors ${
+              isBookmarked
+                ? "border-amber-500/60 bg-amber-500/15 text-amber-400"
+                : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800"
+            }`}
           >
-            <SkipForward className="h-4 w-4 fill-black" />
-            <span>Next: Ep {episode + 1}</span>
-          </Link>
-        )}
+            {isBookmarked ? <Check className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+            <span>{isBookmarked ? "In My List" : "Add to List"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Episode Navigation Drawer / Strip */}
-      {seasonData?.episodes && (
+      {seasonData?.episodes && seasonData.episodes.length > 0 && (
         <div className="mt-10">
           <h3 className="text-lg font-bold text-white mb-4">
             Season {season} Episodes
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {seasonData.episodes.map((ep) => {
               const isActive = ep.episodeNumber === episode;
               const epUrl = `/watch/tv/${tvShow.tmdbId}?season=${season}&episode=${ep.episodeNumber}`;
@@ -146,7 +167,7 @@ export function WatchTVClient({
                   className={`group flex gap-3 p-2.5 rounded-xl border transition-all ${
                     isActive
                       ? "border-amber-500/60 bg-amber-500/10 ring-1 ring-amber-500/30"
-                      : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700"
+                      : "border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700"
                   }`}
                 >
                   <div className="relative aspect-video w-24 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-950">

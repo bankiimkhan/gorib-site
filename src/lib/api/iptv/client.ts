@@ -20,20 +20,20 @@ export const IPTV_CATEGORIES: IPTVCategory[] = [
 ];
 
 export const IPTV_COUNTRIES: IPTVCountry[] = [
-  { code: "all", name: "All Countries", flag: "🌍" },
-  { code: "bd", name: "Bangladesh", flag: "🇧🇩" },
-  { code: "in", name: "India", flag: "🇮🇳" },
-  { code: "us", name: "United States", flag: "🇺🇸" },
-  { code: "uk", name: "United Kingdom", flag: "🇬🇧" },
-  { code: "ca", name: "Canada", flag: "🇨🇦" },
-  { code: "au", name: "Australia", flag: "🇦🇺" },
-  { code: "pk", name: "Pakistan", flag: "🇵🇰" },
-  { code: "sa", name: "Saudi Arabia", flag: "🇸🇦" },
-  { code: "ae", name: "UAE", flag: "🇦🇪" },
-  { code: "tr", name: "Turkey", flag: "🇹🇷" },
-  { code: "fr", name: "France", flag: "🇫🇷" },
-  { code: "de", name: "Germany", flag: "🇩🇪" },
-  { code: "jp", name: "Japan", flag: "🇯🇵" },
+  { code: "all", name: "All Countries" },
+  { code: "bd", name: "Bangladesh" },
+  { code: "in", name: "India" },
+  { code: "us", name: "United States" },
+  { code: "uk", name: "United Kingdom" },
+  { code: "ca", name: "Canada" },
+  { code: "au", name: "Australia" },
+  { code: "pk", name: "Pakistan" },
+  { code: "sa", name: "Saudi Arabia" },
+  { code: "ae", name: "UAE" },
+  { code: "tr", name: "Turkey" },
+  { code: "fr", name: "France" },
+  { code: "de", name: "Germany" },
+  { code: "jp", name: "Japan" },
 ];
 
 // In-memory cache for playlist text to avoid excessive network calls

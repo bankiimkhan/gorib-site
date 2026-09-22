@@ -1,37 +1,73 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Film, Search, Bookmark, Menu, X, PlaySquare } from "lucide-react";
+import { Search, Bookmark, Menu, X, PlaySquare } from "lucide-react";
+import { useWatchlist } from "@/lib/hooks/useWatchlist";
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const { watchlist } = useWatchlist();
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close mobile menu on route change
+  // Lock body scroll when mobile menu is open
   useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
+
+  // Handle escape key to dismiss search or mobile drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileMenuOpen(false);
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Auto-focus search input when opened
+  useEffect(() => {
+    if (searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchOpen]);
+
+  const handleNavClick = () => {
     setMobileMenuOpen(false);
     setSearchOpen(false);
-  }, [pathname]);
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    const query = searchQuery.trim();
+    if (query) {
+      router.push(`/search?q=${encodeURIComponent(query)}`);
       setSearchOpen(false);
+      setMobileMenuOpen(false);
     }
   };
 
@@ -40,7 +76,7 @@ export function Header() {
     { name: "Movies", href: "/movies" },
     { name: "TV Shows", href: "/tv" },
     { name: "Live TV", href: "/live-tv", isLive: true },
-    { name: "My List", href: "/watchlist" },
+    { name: "My List", href: "/watchlist", badge: watchlist.length > 0 ? watchlist.length : undefined },
   ];
 
   return (
@@ -56,6 +92,7 @@ export function Header() {
         <div className="flex items-center gap-8">
           <Link
             href="/"
+            onClick={handleNavClick}
             className="group flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-lg p-1"
           >
             <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
@@ -84,6 +121,11 @@ export function Header() {
                   {link.isLive && (
                     <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                   )}
+                  {link.badge !== undefined && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                      {link.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -97,11 +139,11 @@ export function Header() {
             {searchOpen ? (
               <form onSubmit={handleSearchSubmit} className="flex items-center">
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Search movies, TV shows..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
                   className="w-48 sm:w-64 rounded-full border border-zinc-700 bg-zinc-900/90 px-4 py-1.5 pl-9 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
@@ -120,6 +162,7 @@ export function Header() {
                 onClick={() => setSearchOpen(true)}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800 transition-colors"
                 aria-label="Open search"
+                title="Search (Esc to close)"
               >
                 <Search className="h-4 w-4" />
               </button>
@@ -129,11 +172,16 @@ export function Header() {
           {/* Quick Watchlist link */}
           <Link
             href="/watchlist"
-            className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800 transition-colors"
+            className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800 transition-colors"
             title="My List"
             aria-label="View My Watchlist"
           >
             <Bookmark className="h-4 w-4" />
+            {watchlist.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-black ring-2 ring-[#07090e]">
+                {watchlist.length}
+              </span>
+            )}
           </Link>
 
           {/* Mobile Menu Toggle */}
@@ -170,17 +218,25 @@ export function Header() {
                 <Link
                   key={link.name}
                   href={link.href}
+                  onClick={handleNavClick}
                   className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-base font-medium transition-colors ${
                     isActive
                       ? "bg-amber-500/10 text-amber-400 font-semibold"
                       : "text-zinc-300 hover:bg-zinc-800/60 hover:text-white"
                   }`}
                 >
-                  <span>{link.name}</span>
-                  {link.isLive && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-600/20 px-2 py-0.5 rounded-full border border-red-500/30">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                      LIVE
+                  <span className="flex items-center gap-2">
+                    <span>{link.name}</span>
+                    {link.isLive && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-600/20 px-2 py-0.5 rounded-full border border-red-500/30">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                        LIVE
+                      </span>
+                    )}
+                  </span>
+                  {link.badge !== undefined && (
+                    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-black">
+                      {link.badge}
                     </span>
                   )}
                 </Link>
@@ -196,21 +252,24 @@ export function Header() {
             <div className="flex flex-wrap gap-1.5">
               <Link
                 href="/movies?language=bn"
+                onClick={handleNavClick}
                 className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
               >
-                🇧🇩 Bangla
+                Bangla
               </Link>
               <Link
                 href="/movies?language=hi"
+                onClick={handleNavClick}
                 className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
               >
-                🇮🇳 Hindi / Bollywood
+                Hindi / Bollywood
               </Link>
               <Link
                 href="/movies?language=south"
+                onClick={handleNavClick}
                 className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
               >
-                🇮🇳 South Indian
+                South Indian
               </Link>
             </div>
           </div>
@@ -219,4 +278,3 @@ export function Header() {
     </header>
   );
 }
-

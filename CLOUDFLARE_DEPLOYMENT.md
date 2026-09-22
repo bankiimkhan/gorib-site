@@ -83,43 +83,32 @@ Once deployed to your `*.workers.dev` subdomain:
 
 ---
 
-## 7. GitHub Actions CI/CD (Optional)
+## 7. GitHub Actions CI/CD
 
-To automatically deploy upon pushing to `main`, create `.github/workflows/deploy.yml`:
+Every push to `main` is deployed automatically by
+[`.github/workflows/deploy.yml`](file:///g:/Main2/gorib-site/.github/workflows/deploy.yml).
+The workflow installs with the committed `pnpm-lock.yaml`, runs the Vitest
+suite, builds the OpenNext bundle, and uploads it with `wrangler deploy`.
+It can also be triggered by hand from the **Actions** tab (`workflow_dispatch`).
 
-```yaml
-name: Deploy to Cloudflare Workers
+### Required repository secrets
 
-on:
-  push:
-    branches:
-      - main
+Add these under **Settings** > **Secrets and variables** > **Actions**:
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Yes | Authenticates `wrangler deploy`. Use the **Edit Cloudflare Workers** template, or a custom token with the *Workers Scripts: Edit* permission. |
+| `CLOUDFLARE_ACCOUNT_ID` | Yes | Target account. Found on the Cloudflare dashboard sidebar or via `pnpm wrangler whoami`. |
+| `TMDB_API_KEY` | Recommended | The home page is prerendered (`revalidate = 3600`), so it fetches TMDB during the build. Without this secret the build bakes in mock data until the first runtime revalidation. |
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+Build-time settings that are **not** secret (`NEXT_PUBLIC_SITE_URL`,
+`STREAMING_PROVIDER`, and friends) are declared in the workflow's `env:` block.
+They have to live there as well as in `wrangler.jsonc`: `NEXT_PUBLIC_*` values
+are inlined into the bundle when it is built, while `wrangler.jsonc` `vars` are
+only injected into the Worker at runtime. Keep the two lists in sync.
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Deploy to Cloudflare Workers
-        run: pnpm deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-```
-
+> **Do not use `pnpm deploy` in CI.** `deploy` is a built-in pnpm command for
+> workspace packages, so it never runs the `deploy` script in `package.json` —
+> it just fails with `ERR_PNPM_CANNOT_DEPLOY`. Use `pnpm run deploy:cf`, or the
+> split `pnpm run build:worker` + `pnpm exec wrangler deploy` steps the
+> workflow uses.

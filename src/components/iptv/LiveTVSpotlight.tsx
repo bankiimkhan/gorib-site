@@ -1,15 +1,15 @@
 import React from "react";
 import Link from "next/link";
-import { Radio, ChevronRight, Tv, Play } from "lucide-react";
+import { ChevronRight, Play } from "lucide-react";
 
 export function LiveTVSpotlight() {
   const previewChannels = [
-    { name: "ATN Bangla", flag: "🇧🇩", category: "General" },
-    { name: "Sky News", flag: "🇬🇧", category: "News" },
-    { name: "Al Jazeera", flag: "🌍", category: "News" },
-    { name: "Red Bull TV", flag: "⚽", category: "Sports" },
-    { name: "Pluto Movies", flag: "🎬", category: "Movies" },
-    { name: "NASA TV", flag: "🚀", category: "Science" },
+    { name: "ATN Bangla", category: "General" },
+    { name: "Sky News", category: "News" },
+    { name: "Al Jazeera", category: "News" },
+    { name: "Red Bull TV", category: "Sports" },
+    { name: "Pluto Movies", category: "Movies" },
+    { name: "NASA TV", category: "Science" },
   ];
 
   return (
@@ -41,7 +41,7 @@ export function LiveTVSpotlight() {
                   key={ch.name}
                   className="flex items-center gap-1.5 rounded-lg bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-300 border border-zinc-700/60"
                 >
-                  <span>{ch.flag}</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                   <span className="font-medium text-white">{ch.name}</span>
                 </div>
               ))}

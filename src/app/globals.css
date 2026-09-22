@@ -22,6 +22,8 @@
   --color-primary-hover: var(--primary-hover);
   --color-accent: var(--accent);
   --color-muted: var(--muted);
+  --font-sans: var(--font-netflix-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 body {
@@ -29,8 +31,9 @@ body {
   color: var(--foreground);
   min-height: 100vh;
   overflow-x: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-netflix-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbars */
@@ -67,6 +70,20 @@ body {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 4px 20px rgba(0, 0, 0, 0.6);
 }
 
+/* Billboard slide timer - duration mirrors SLIDE_DURATION_MS in HeroCarousel */
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-hero-progress {
+  animation: hero-progress 7000ms linear forwards;
+}
+
 /* Shimmer animation for skeletons */
 @keyframes shimmer {
   0% {
@@ -87,3 +104,15 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

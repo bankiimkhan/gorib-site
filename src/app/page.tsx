@@ -1,5 +1,6 @@
 import {
   getTrending,
+  getNowPlayingMovies,
   getPopularMovies,
   getPopularTV,
   getTopRatedMovies,
@@ -8,7 +9,7 @@ import {
   getHindiMovies,
   getSouthIndianMovies,
 } from "@/lib/api/tmdb/client";
-import { HeroBanner } from "@/components/common/HeroBanner";
+import { HeroCarousel } from "@/components/common/HeroCarousel";
 import { MediaRow } from "@/components/common/MediaRow";
 import { ContinueWatchingRow } from "@/components/common/ContinueWatchingRow";
 import { AdSlot } from "@/components/ads/AdSlot";
@@ -19,6 +20,7 @@ export const revalidate = 3600; // Revalidate home page every hour
 export default async function HomePage() {
   const [
     trending,
+    latestReleases,
     banglaMovies,
     hindiMovies,
     southIndianMovies,
@@ -28,6 +30,7 @@ export default async function HomePage() {
     topRatedTV,
   ] = await Promise.all([
     getTrending("all", "day"),
+    getNowPlayingMovies(1),
     getBanglaMovies(1),
     getHindiMovies(1),
     getSouthIndianMovies(1),
@@ -37,12 +40,10 @@ export default async function HomePage() {
     getTopRatedTV(1),
   ]);
 
-  const heroItem = trending[0] || popularMovies.items[0];
-
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Cinematic Hero */}
-      {heroItem && <HeroBanner item={heroItem} />}
+      {/* Latest releases billboard */}
+      <HeroCarousel items={latestReleases.items} />
 
       {/* Top Ad Slot */}
       <AdSlot placement="home-top" />
@@ -60,7 +61,7 @@ export default async function HomePage() {
       {/* Bangla Cinema */}
       {banglaMovies.items.length > 0 && (
         <MediaRow
-          title="🇧🇩 Bangla Cinema"
+          title="Bangla Cinema"
           items={banglaMovies.items}
           viewAllHref="/movies?language=bn"
         />
@@ -69,7 +70,7 @@ export default async function HomePage() {
       {/* Bollywood Cinema */}
       {hindiMovies.items.length > 0 && (
         <MediaRow
-          title="🇮🇳 Bollywood Cinema"
+          title="Bollywood Cinema"
           items={hindiMovies.items}
           viewAllHref="/movies?language=hi"
         />
@@ -78,7 +79,7 @@ export default async function HomePage() {
       {/* South Indian Cinema */}
       {southIndianMovies.items.length > 0 && (
         <MediaRow
-          title="🇮🇳 South Indian Cinema"
+          title="South Indian Cinema"
           items={southIndianMovies.items}
           viewAllHref="/movies?language=south"
         />

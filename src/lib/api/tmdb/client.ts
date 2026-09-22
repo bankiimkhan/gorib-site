@@ -128,6 +128,37 @@ export async function getPopularMovies(page = 1): Promise<MediaPageResult<MediaI
 }
 
 /**
+ * Gets the most recently released movies, newest first.
+ *
+ * TMDB returns `/movie/now_playing` in popularity order, so it is re-sorted by
+ * release date to get a genuine "latest released" list for the home billboard.
+ */
+export async function getNowPlayingMovies(page = 1): Promise<MediaPageResult<MediaItem>> {
+  const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", { page }, 1800);
+
+  if (!data) {
+    return {
+      items: MOCK_TRENDING_MOVIES,
+      page: 1,
+      totalPages: 1,
+      totalResults: MOCK_TRENDING_MOVIES.length,
+    };
+  }
+
+  const items = data.results
+    .map(normalizeMovie)
+    .filter((movie) => Boolean(movie.releaseDate))
+    .sort((a, b) => (a.releaseDate! < b.releaseDate! ? 1 : -1));
+
+  return {
+    items,
+    page: data.page,
+    totalPages: Math.min(data.total_pages, 500),
+    totalResults: data.total_results,
+  };
+}
+
+/**
  * Gets top-rated movies
  */
 export async function getTopRatedMovies(page = 1): Promise<MediaPageResult<MediaItem>> {
