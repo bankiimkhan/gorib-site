@@ -16,7 +16,8 @@
     "TMDB_BASE_URL": "https://api.themoviedb.org/3",
     "TMDB_IMAGE_BASE_URL": "https://image.tmdb.org/t/p",
     "STREAMING_PROVIDER": "mock",
-    "NEXT_PUBLIC_AD_SLOTS_ENABLED": "false"
+    "NEXT_PUBLIC_AD_SLOTS_ENABLED": "false",
+    "TMDB_API_KEY": "63bcc17f6066180c0dc10bbded74c140"
   }
 }
 
