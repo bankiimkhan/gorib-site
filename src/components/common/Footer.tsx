@@ -1,10 +1,90 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PlaySquare, ArrowUp, Film, Radio, Sparkles } from "lucide-react";
 
 export function Footer() {
+  const [viewers, setViewers] = useState<number>(1);
+
+  useEffect(() => {
+    // Generate or retrieve persistent session ID for this browser tab
+    let sessionId: string;
+    try {
+      const stored = sessionStorage.getItem("gorib_viewer_session");
+      if (stored) {
+        sessionId = stored;
+      } else {
+        sessionId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        sessionStorage.setItem("gorib_viewer_session", sessionId);
+      }
+    } catch {
+      sessionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+    let isMounted = true;
+
+    // Heartbeat function to report real presence and receive live visitor count
+    const pingPresence = async (action: "ping" | "leave" = "ping") => {
+      try {
+        const res = await fetch("/api/viewers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, action }),
+          cache: "no-store",
+        });
+        if (res.ok && isMounted && action === "ping") {
+          const data = (await res.json()) as { count?: number };
+          if (typeof data.count === "number") {
+            setViewers(data.count);
+          }
+        }
+      } catch {
+        // Keep current count on offline/network error
+      }
+    };
+
+    // Initial ping on mount
+    pingPresence("ping");
+
+    // Ping every 15 seconds while user is actively browsing
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        pingPresence("ping");
+      }
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        pingPresence("ping");
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const payload = JSON.stringify({ sessionId, action: "leave" });
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/viewers", blob);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, []);
+
   const scrollToTop = () => {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -162,9 +242,22 @@ export function Footer() {
             <p className="text-center sm:text-left">
               © {new Date().getFullYear()} gorib.lol. All rights reserved.
             </p>
-            <p className="text-zinc-600 text-center text-[11px] sm:text-xs">
-              Non-commercial educational demonstration • High-definition streaming
-            </p>
+            <div
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-950/70 bg-emerald-950/25 px-3 py-1 text-xs text-zinc-300 shadow-sm"
+              aria-live="polite"
+              aria-label={`${viewers.toLocaleString()} live viewers watching now`}
+            >
+              <span className="relative flex h-2 w-2" aria-hidden="true">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-mono font-bold text-emerald-400">
+                {viewers.toLocaleString()}
+              </span>
+              <span className="text-zinc-400 text-[11px] sm:text-xs">
+                watching now
+              </span>
+            </div>
             <button
               type="button"
               onClick={scrollToTop}

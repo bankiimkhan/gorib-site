@@ -63,5 +63,11 @@ describe("Footer Component", () => {
 
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
+
+  it("renders live viewers counter and does not display non-commercial text", () => {
+    render(<Footer />);
+    expect(screen.getByText(/watching now/i)).toBeDefined();
+    expect(screen.queryByText(/Non-commercial educational demonstration/i)).toBeNull();
+  });
 });
 
