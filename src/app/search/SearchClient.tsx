@@ -7,6 +7,8 @@ import { MediaItem } from "@/types/media";
 import { MediaCard } from "@/components/common/MediaCard";
 import { SearchSkeleton } from "@/components/common/Skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
+import { AdSlot } from "@/components/ads/AdSlot";
+import { NativeAdCard } from "@/components/ads/NativeAdCard";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
 const SUGGESTED_SEARCHES = [
@@ -175,8 +177,11 @@ export function SearchClient() {
         </div>
       </div>
 
+      {/* Search Banner Ad Slot */}
+      <AdSlot placement="search-banner" />
+
       {/* Results View */}
-      <div className="mt-10">
+      <div className="mt-6">
         {isLoading ? (
           <SearchSkeleton />
         ) : hasSearched && results.length === 0 ? (
@@ -192,8 +197,11 @@ export function SearchClient() {
               Found <span className="font-bold text-white">{results.length}</span> titles for &quot;{debouncedQuery}&quot;
             </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {results.map((item) => (
-                <MediaCard key={item.id} item={item} />
+              {results.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  {index === 6 && <NativeAdCard key="search-sponsor" />}
+                  <MediaCard item={item} />
+                </React.Fragment>
               ))}
             </div>
           </div>

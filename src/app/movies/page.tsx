@@ -6,6 +6,7 @@ import { MOVIE_GENRES } from "@/lib/api/tmdb/genres";
 import { MediaCard } from "@/components/common/MediaCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { NativeAdCard } from "@/components/ads/NativeAdCard";
 import { SlidersHorizontal, X } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -181,7 +182,7 @@ export default async function MoviesPage({ searchParams }: MoviesPageProps) {
         ))}
       </div>
 
-      <AdSlot placement="home-top" />
+      <AdSlot placement="catalog-header" />
 
       {/* Active filters status banner */}
       {hasActiveFilters && (
@@ -248,8 +249,11 @@ export default async function MoviesPage({ searchParams }: MoviesPageProps) {
         />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {result.items.map((movie) => (
-            <MediaCard key={movie.id} item={movie} />
+          {result.items.map((movie, index) => (
+            <React.Fragment key={movie.id}>
+              {index === 12 && <NativeAdCard key="in-feed-sponsor" />}
+              <MediaCard item={movie} />
+            </React.Fragment>
           ))}
         </div>
       )}

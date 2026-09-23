@@ -1,49 +1,132 @@
-import React from "react";
+"use client";
 
-export type AdPlacement =
-  | "home-top"
-  | "home-feed"
-  | "details"
-  | "player-bottom"
-  | "search";
+import React, { useEffect, useRef, useState } from "react";
+import { AdPlacement } from "@/lib/ads/types";
+import { getAdConfig, isPlacementActive, PLACEMENT_DIMENSIONS } from "@/lib/ads/adConfig";
+import { AdProviderRenderer } from "@/lib/ads/providers";
+import { trackAdEvent } from "@/lib/ads/adAnalytics";
+
+export type { AdPlacement };
 
 interface AdSlotProps {
   placement: AdPlacement;
   className?: string;
+  priority?: boolean;
 }
 
 /**
- * Configurable AdSlot Component.
- * Controlled by process.env.NEXT_PUBLIC_AD_SLOTS_ENABLED.
- * When disabled (default), renders null with 0 layout shift.
- * When enabled, renders a styled placeholder ready for ad scripts (e.g. Google AdSense / Prebid).
+ * Production-ready, zero-CLS AdSlot Component.
+ * - Centralized feature flags & per-placement controls.
+ * - IntersectionObserver lazy-loading (250px buffer).
+ * - Provider abstraction (Placeholder, AdSense, Custom).
+ * - Layout reservation to prevent Cumulative Layout Shift.
+ * - Viewability tracking (50% in viewport for 1 second continuous).
  */
-export function AdSlot({ placement, className = "" }: AdSlotProps) {
-  const isEnabled = process.env.NEXT_PUBLIC_AD_SLOTS_ENABLED === "true";
+export function AdSlot({ placement, className = "", priority = false }: AdSlotProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(priority);
+  const [isRendered, setIsRendered] = useState(false);
+  const viewableTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!isEnabled) {
+  const active = isPlacementActive(placement);
+  const config = getAdConfig();
+  const dimensions = PLACEMENT_DIMENSIONS[placement] || PLACEMENT_DIMENSIONS["home-top"];
+
+  // IntersectionObserver for lazy-loading ad assets
+  useEffect(() => {
+    if (!active || priority || isInView) return;
+
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: `${config.lazyLoadOffsetPx}px 0px` }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [active, priority, isInView, config.lazyLoadOffsetPx]);
+
+  // Viewability tracking: in viewport for 1 second continuously (MRC Standard)
+  useEffect(() => {
+    if (!active || !isInView) return;
+
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const viewObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          if (!viewableTimerRef.current) {
+            viewableTimerRef.current = setTimeout(() => {
+              trackAdEvent("viewable", placement, config.provider);
+            }, 1000);
+          }
+        } else {
+          if (viewableTimerRef.current) {
+            clearTimeout(viewableTimerRef.current);
+            viewableTimerRef.current = null;
+          }
+        }
+      },
+      { threshold: [0.5] }
+    );
+
+    viewObserver.observe(el);
+
+    return () => {
+      viewObserver.disconnect();
+      if (viewableTimerRef.current) {
+        clearTimeout(viewableTimerRef.current);
+      }
+    };
+  }, [active, isInView, placement, config.provider]);
+
+  // Fire initial impression once loaded in view
+  useEffect(() => {
+    if (active && isInView && !isRendered) {
+      setIsRendered(true);
+      trackAdEvent("impression", placement, config.provider);
+    }
+  }, [active, isInView, isRendered, placement, config.provider]);
+
+  if (!active) {
     return null;
   }
 
-  const dimensions = {
-    "home-top": "h-24 max-w-5xl",
-    "home-feed": "h-32 max-w-6xl",
-    details: "h-28 max-w-4xl",
-    "player-bottom": "h-20 max-w-5xl",
-    search: "h-24 max-w-4xl",
-  }[placement];
-
   return (
     <div
+      ref={containerRef}
       data-ad-placement={placement}
-      className={`mx-auto my-6 flex w-full items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40 p-4 text-xs tracking-wider text-zinc-600 uppercase ${dimensions} ${className}`}
+      data-ad-provider={config.provider}
+      className={`mx-auto my-6 flex w-full items-center justify-center transition-opacity duration-300 ${dimensions.minHeightClass} ${dimensions.maxWidthClass} ${className}`}
+      role="region"
       aria-label={`Advertisement slot: ${placement}`}
     >
-      <div className="flex flex-col items-center gap-1">
-        <span className="font-semibold text-zinc-500">Sponsored Area</span>
-        <span className="text-[10px] text-zinc-700">Placement: {placement}</span>
-      </div>
+      {isInView ? (
+        <AdProviderRenderer
+          placement={placement}
+          provider={config.provider}
+          placeholderMode={config.placeholderMode}
+        />
+      ) : (
+        // Blank CLS-safe reservation box while waiting to scroll into view
+        <div
+          className={`w-full ${dimensions.minHeightClass}`}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
-

@@ -206,7 +206,7 @@ export default async function MovieDetailsPage({ params }: MoviePageProps) {
         </div>
       </div>
 
-      <AdSlot placement="details" />
+      <AdSlot placement="details-mid" />
 
       {/* Recommended / Similar Movies */}
       {relatedMovies.length > 0 && (

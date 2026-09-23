@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
+import { StickyBottomAd } from "@/components/ads/StickyBottomAd";
 
 // Netflix sets type in the proprietary "Netflix Sans"; Inter is the closest
 // open substitute and sits in front of Netflix's own Helvetica fallback chain.
@@ -43,6 +45,27 @@ export default function RootLayout({
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
+        <StickyBottomAd />
+        {process.env.NEXT_PUBLIC_ADS_ENABLED === "true" &&
+          process.env.NEXT_PUBLIC_AD_PROVIDER === "custom" &&
+          process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL && (
+            <Script
+              id="ad-network-multitag"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `(function(ghy){
+var d = document,
+    s = d.createElement('script'),
+    l = d.currentScript || d.scripts[d.scripts.length - 1];
+s.settings = ghy || {};
+s.src = ${JSON.stringify(process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL)};
+s.async = true;
+s.referrerPolicy = 'no-referrer-when-downgrade';
+l.parentNode.insertBefore(s, l);
+})({});`,
+              }}
+            />
+          )}
       </body>
     </html>
   );

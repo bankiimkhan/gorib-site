@@ -270,7 +270,7 @@ export function TVDetailsClient({ tvShow, initialSeason }: TVDetailsClientProps)
         </div>
       </div>
 
-      <AdSlot placement="details" />
+      <AdSlot placement="details-mid" />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { IPTVChannel, IPTVCategory, IPTVCountry } from "@/types/iptv";
 import { StreamSource } from "@/types/streaming";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { ChannelCard } from "@/components/iptv/ChannelCard";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { useLiveTVFavorites } from "@/lib/hooks/useLiveTVFavorites";
 import {
   Tv,
@@ -399,6 +400,9 @@ export function LiveTVClient({
           </div>
         </div>
       )}
+
+      {/* Live TV Banner Ad Slot */}
+      <AdSlot placement="live-tv-banner" />
 
       {/* Channel Guide & Exploration Section */}
       <div className="space-y-6">

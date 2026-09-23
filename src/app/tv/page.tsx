@@ -6,6 +6,7 @@ import { TV_GENRES } from "@/lib/api/tmdb/genres";
 import { MediaCard } from "@/components/common/MediaCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { NativeAdCard } from "@/components/ads/NativeAdCard";
 import { SlidersHorizontal, X } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -148,7 +149,7 @@ export default async function TVPage({ searchParams }: TVPageProps) {
         ))}
       </div>
 
-      <AdSlot placement="home-top" />
+      <AdSlot placement="catalog-header" />
 
       {/* Active filters status banner */}
       {hasActiveFilters && (
@@ -215,8 +216,11 @@ export default async function TVPage({ searchParams }: TVPageProps) {
         />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {result.items.map((tv) => (
-            <MediaCard key={tv.id} item={tv} />
+          {result.items.map((tv, index) => (
+            <React.Fragment key={tv.id}>
+              {index === 12 && <NativeAdCard key="in-feed-sponsor" />}
+              <MediaCard item={tv} />
+            </React.Fragment>
           ))}
         </div>
       )}
