@@ -1,7 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { resolveMovieStream, resolveEpisodeStream } from "@/lib/api/streaming/resolver";
 
 describe("Stream Resolver Integration", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    // The DhakaFlix leg probes BDIX hosts on 172.16.50.x across four candidate
+    // directories in sequence, each with a 2.5s abort. Those addresses are
+    // unroutable off that network, so on CI every probe burns its full timeout
+    // and the test outruns vitest's 5s budget. Fail the probes instantly: this
+    // is the no-BDIX path these assertions already describe.
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("Network Error"));
+  });
+
   it("resolves a movie stream with default sources", async () => {
     const result = await resolveMovieStream({
       tmdbId: 693134,
