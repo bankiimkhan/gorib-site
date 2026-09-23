@@ -24,7 +24,8 @@ describe("Stream Resolver Integration", () => {
     expect(result.type).toBe("movie");
     expect(result.title).toBe("Dune: Part Two");
     expect(result.sources.length).toBeGreaterThan(0);
-    expect(result.sources[0].url).toContain("multiembed");
+    expect(result.sources[0].url).toContain("vidsrc");
+    expect(result.sources.some((s) => s.url.includes("multiembed"))).toBe(true);
   });
 
   it("resolves a TV episode stream with season and episode numbers", async () => {

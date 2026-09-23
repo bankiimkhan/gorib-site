@@ -16,22 +16,22 @@ export class MockStreamingProvider implements StreamingProvider {
   }): Promise<StreamResult> {
     const sources: StreamSource[] = [
       {
-        url: `https://multiembed.mov/?video_id=${params.tmdbId}&tmdb=1`,
-        format: "iframe",
-        quality: "1080p",
-        serverName: "Server 1 (MultiEmbed VIP)",
-      },
-      {
         url: `https://player.vidsrc.nl/embed/movie/${params.tmdbId}`,
         format: "iframe",
         quality: "1080p",
-        serverName: "Server 2 (VidSrc HD)",
+        serverName: "Server 1 (VidSrc HD)",
       },
       {
         url: `https://autoembed.co/movie/tmdb/${params.tmdbId}`,
         format: "iframe",
         quality: "auto",
-        serverName: "Server 3 (AutoEmbed)",
+        serverName: "Server 2 (AutoEmbed)",
+      },
+      {
+        url: `https://multiembed.mov/?video_id=${params.tmdbId}&tmdb=1`,
+        format: "iframe",
+        quality: "1080p",
+        serverName: "Server 3 (MultiEmbed)",
       },
     ];
 
@@ -53,16 +53,22 @@ export class MockStreamingProvider implements StreamingProvider {
   }): Promise<StreamResult> {
     const sources: StreamSource[] = [
       {
-        url: `https://multiembed.mov/?video_id=${params.tmdbId}&tmdb=1&s=${params.season}&e=${params.episode}`,
-        format: "iframe",
-        quality: "1080p",
-        serverName: `Server 1 (MultiEmbed S${params.season}:E${params.episode})`,
-      },
-      {
         url: `https://player.vidsrc.nl/embed/tv/${params.tmdbId}/${params.season}/${params.episode}`,
         format: "iframe",
         quality: "1080p",
-        serverName: `Server 2 (VidSrc S${params.season}:E${params.episode})`,
+        serverName: `Server 1 (VidSrc S${params.season}:E${params.episode})`,
+      },
+      {
+        url: `https://autoembed.co/tv/tmdb/${params.tmdbId}-${params.season}-${params.episode}`,
+        format: "iframe",
+        quality: "auto",
+        serverName: `Server 2 (AutoEmbed S${params.season}:E${params.episode})`,
+      },
+      {
+        url: `https://multiembed.mov/?video_id=${params.tmdbId}&tmdb=1&s=${params.season}&e=${params.episode}`,
+        format: "iframe",
+        quality: "1080p",
+        serverName: `Server 3 (MultiEmbed S${params.season}:E${params.episode})`,
       },
     ];
 
