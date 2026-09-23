@@ -13,7 +13,6 @@ import { HeroCarousel } from "@/components/common/HeroCarousel";
 import { MediaRow } from "@/components/common/MediaRow";
 import { ContinueWatchingRow } from "@/components/common/ContinueWatchingRow";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { LiveTVSpotlight } from "@/components/iptv/LiveTVSpotlight";
 
 export const revalidate = 3600; // Revalidate home page every hour
 
@@ -84,9 +83,6 @@ export default async function HomePage() {
           viewAllHref="/movies?language=south"
         />
       )}
-
-      {/* Live TV Spotlight */}
-      <LiveTVSpotlight />
 
       {/* Popular Movies */}
       <MediaRow

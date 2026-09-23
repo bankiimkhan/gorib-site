@@ -110,7 +110,7 @@ export function AdSlot({ placement, className = "", priority = false }: AdSlotPr
       ref={containerRef}
       data-ad-placement={placement}
       data-ad-provider={config.provider}
-      className={`mx-auto my-6 flex w-full items-center justify-center transition-opacity duration-300 ${dimensions.minHeightClass} ${dimensions.maxWidthClass} ${className}`}
+      className={`mx-auto my-3 sm:my-6 px-2 sm:px-0 flex w-full items-center justify-center transition-opacity duration-300 ${dimensions.minHeightClass} ${dimensions.maxWidthClass} ${className}`}
       role="region"
       aria-label={`Advertisement slot: ${placement}`}
     >

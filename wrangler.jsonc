@@ -28,7 +28,7 @@
     "NEXT_PUBLIC_AD_CATALOG_IN_FEED": "false",
     "NEXT_PUBLIC_AD_SEARCH": "false",
     "NEXT_PUBLIC_AD_LIVE_TV": "false",
-    "NEXT_PUBLIC_AD_MOBILE_STICKY": "false",
+    "NEXT_PUBLIC_AD_MOBILE_STICKY": "true",
     "TMDB_API_KEY": "63bcc17f6066180c0dc10bbded74c140",
     "NEXT_PRIVATE_MINIMAL_MODE": "1"
   }

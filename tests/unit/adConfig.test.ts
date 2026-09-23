@@ -62,7 +62,8 @@ describe("Ad Configuration System", () => {
   });
 
   it("provides guaranteed minHeightClass and dimensions for zero-CLS", () => {
-    expect(PLACEMENT_DIMENSIONS["home-top"].minHeightClass).toContain("min-h-[100px]");
+    expect(PLACEMENT_DIMENSIONS["home-top"].minHeightClass).toContain("min-h-[50px]");
+    expect(PLACEMENT_DIMENSIONS["home-top"].minHeightClass).toContain("sm:min-h-[90px]");
     expect(PLACEMENT_DIMENSIONS["home-feed"].minHeightClass).toContain("min-h-[250px]");
     expect(PLACEMENT_DIMENSIONS["catalog-in-feed"].minHeightClass).toBe("aspect-[2/3]");
     expect(PLACEMENT_DIMENSIONS["mobile-sticky"].minHeightClass).toContain("min-h-[50px]");

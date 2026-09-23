@@ -91,21 +91,21 @@ export function isPlacementActive(placement: AdPlacement): boolean {
 export const PLACEMENT_DIMENSIONS: Record<AdPlacement, AdPlacementDimensions> = {
   "home-top": {
     desktop: { width: 728, height: 90 },
-    mobile: { width: 320, height: 100 },
-    minHeightClass: "min-h-[100px]",
-    maxWidthClass: "max-w-5xl",
+    mobile: { width: 320, height: 50 },
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "home-feed": {
     desktop: { width: 970, height: 250 },
     mobile: { width: 300, height: 250 },
-    minHeightClass: "min-h-[250px] sm:min-h-[140px]",
-    maxWidthClass: "max-w-6xl",
+    minHeightClass: "min-h-[250px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-5xl",
   },
   "catalog-header": {
     desktop: { width: 728, height: 90 },
     mobile: { width: 320, height: 50 },
-    minHeightClass: "min-h-[90px] sm:min-h-[90px]",
-    maxWidthClass: "max-w-7xl",
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "catalog-in-feed": {
     desktop: { width: "100%", height: 380 },
@@ -116,45 +116,45 @@ export const PLACEMENT_DIMENSIONS: Record<AdPlacement, AdPlacementDimensions> = 
   "details-mid": {
     desktop: { width: 728, height: 90 },
     mobile: { width: 300, height: 250 },
-    minHeightClass: "min-h-[100px] sm:min-h-[100px]",
-    maxWidthClass: "max-w-5xl",
+    minHeightClass: "min-h-[250px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "player-bottom": {
     desktop: { width: 728, height: 90 },
-    mobile: { width: 320, height: 100 },
-    minHeightClass: "min-h-[100px]",
-    maxWidthClass: "max-w-5xl",
+    mobile: { width: 320, height: 50 },
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "search-banner": {
     desktop: { width: 728, height: 90 },
     mobile: { width: 320, height: 50 },
-    minHeightClass: "min-h-[90px]",
-    maxWidthClass: "max-w-4xl",
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "live-tv-banner": {
     desktop: { width: 728, height: 90 },
     mobile: { width: 320, height: 50 },
-    minHeightClass: "min-h-[90px]",
-    maxWidthClass: "max-w-5xl",
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   "mobile-sticky": {
     desktop: { width: 0, height: 0 },
     mobile: { width: 320, height: 50 },
     minHeightClass: "min-h-[50px]",
-    maxWidthClass: "max-w-sm",
+    maxWidthClass: "max-w-[320px]",
   },
   // Legacy aliases
   details: {
     desktop: { width: 728, height: 90 },
     mobile: { width: 300, height: 250 },
-    minHeightClass: "min-h-[100px]",
-    maxWidthClass: "max-w-5xl",
+    minHeightClass: "min-h-[250px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
   search: {
     desktop: { width: 728, height: 90 },
     mobile: { width: 320, height: 50 },
-    minHeightClass: "min-h-[90px]",
-    maxWidthClass: "max-w-4xl",
+    minHeightClass: "min-h-[50px] sm:min-h-[90px]",
+    maxWidthClass: "max-w-[320px] sm:max-w-4xl",
   },
 };
 

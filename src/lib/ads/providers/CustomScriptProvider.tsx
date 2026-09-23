@@ -52,7 +52,7 @@ export function CustomScriptProvider({ placement, className = "" }: CustomScript
   return (
     <div
       ref={containerRef}
-      className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/40 p-2 ${dimensions.minHeightClass} ${className}`}
+      className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-1 sm:p-2 ${dimensions.minHeightClass} ${className}`}
       data-custom-placement={placement}
     >
       <span className="absolute top-1 right-2 text-[9px] text-zinc-600 uppercase font-mono tracking-widest pointer-events-none">
