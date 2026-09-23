@@ -1,4 +1,9 @@
 import { StreamResult, StreamSource } from "@/types/streaming";
+import {
+  deduplicateSubtitleTracks,
+  deduplicateAudioTracks,
+  normalizeLanguageCode,
+} from "@/lib/utils/languages";
 
 /**
  * Validates a single stream source URL and ensures it meets security criteria
@@ -40,23 +45,41 @@ export function validateStreamSource(source: unknown): StreamSource | null {
     }
   }
 
-  // Sanitize subtitles
-  const subtitles = Array.isArray(s.subtitles)
+  // Sanitize and deduplicate subtitles
+  const rawSubtitles = Array.isArray(s.subtitles)
     ? s.subtitles
         .filter((sub) => sub && typeof sub === "object" && isValidStreamUrl(sub.url))
         .map((sub) => ({
           label: String(sub.label || "Subtitle"),
-          language: String(sub.language || "en"),
-          url: sub.url,
+          language: normalizeLanguageCode(sub.language || "en"),
+          url: sub.url!.trim(),
           default: Boolean(sub.default),
         }))
     : undefined;
+  const subtitles = rawSubtitles && rawSubtitles.length > 0 ? deduplicateSubtitleTracks(rawSubtitles) : undefined;
+
+  // Sanitize and deduplicate audio tracks
+  const rawAudio = Array.isArray(s.audioTracks)
+    ? s.audioTracks
+        .filter((a) => a && typeof a === "object")
+        .map((a, i) => ({
+          id: a.id !== undefined && a.id !== null ? a.id : i,
+          label: String(a.label || "Audio Track"),
+          language: normalizeLanguageCode(a.language || "en"),
+          default: Boolean(a.default),
+          isDub: Boolean(a.isDub),
+          channels: typeof a.channels === "number" ? a.channels : undefined,
+          sourceIndex: typeof a.sourceIndex === "number" ? a.sourceIndex : undefined,
+        }))
+    : undefined;
+  const audioTracks = rawAudio && rawAudio.length > 0 ? deduplicateAudioTracks(rawAudio) : undefined;
 
   return {
     url: s.url!.trim(),
     format,
     quality: s.quality || "auto",
-    language: s.language || "en",
+    language: normalizeLanguageCode(s.language || "en"),
+    audioTracks,
     subtitles,
     serverName: s.serverName ? String(s.serverName) : undefined,
   };
@@ -94,6 +117,14 @@ export function validateStreamResult(data: unknown): StreamResult | null {
       ? res.defaultSourceIndex
       : 0;
 
+  const availableSubtitles = Array.isArray(res.availableSubtitles)
+    ? deduplicateSubtitleTracks(res.availableSubtitles)
+    : undefined;
+
+  const availableAudio = Array.isArray(res.availableAudio)
+    ? deduplicateAudioTracks(res.availableAudio)
+    : undefined;
+
   return {
     mediaId: String(res.mediaId),
     type: res.type === "tv" ? "tv" : "movie",
@@ -103,6 +134,8 @@ export function validateStreamResult(data: unknown): StreamResult | null {
     sources: validSources,
     defaultSourceIndex: defaultIndex,
     duration: typeof res.duration === "number" ? res.duration : undefined,
+    availableSubtitles,
+    availableAudio,
   };
 }
 

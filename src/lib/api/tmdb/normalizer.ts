@@ -54,6 +54,7 @@ export function normalizeMovie(item: TMDBMovie): MediaItem {
     voteCount: item.vote_count || 0,
     popularity: item.popularity || 0,
     genres: mapGenreIds(item.genre_ids),
+    originalLanguage: item.original_language,
   };
 }
 
@@ -76,6 +77,7 @@ export function normalizeTVShow(item: TMDBTVShow): TVShow {
     voteCount: item.vote_count || 0,
     popularity: item.popularity || 0,
     genres: mapGenreIds(item.genre_ids),
+    originalLanguage: item.original_language,
   };
 }
 
@@ -124,6 +126,7 @@ export function normalizeMovieDetails(item: TMDBMovieDetails): MediaItem {
     cast,
     crew,
     trailerUrl,
+    spokenLanguages: item.spoken_languages?.map((l) => l.iso_639_1),
   };
 }
 
@@ -170,6 +173,7 @@ export function normalizeTVDetails(item: TMDBTVDetails): TVShow {
     seasons,
     cast,
     trailerUrl,
+    spokenLanguages: item.spoken_languages?.map((l) => l.iso_639_1),
   };
 }
 

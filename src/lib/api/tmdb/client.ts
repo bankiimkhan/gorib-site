@@ -13,6 +13,7 @@ import {
   TMDBMovie,
   TMDBTVShow,
   TMDBExternalIds,
+  TMDBTranslationsResult,
 } from "@/types/tmdb";
 import {
   normalizeMovie,
@@ -477,5 +478,28 @@ export async function getExternalIds(
   tmdbId: number
 ): Promise<TMDBExternalIds | null> {
   return tmdbFetch<TMDBExternalIds>(`/${type}/${tmdbId}/external_ids`, {}, 86400);
+}
+
+/**
+ * Gets translations / available languages for a movie or TV show / episode
+ */
+export async function getTranslations(
+  type: "movie" | "tv",
+  tmdbId: number,
+  season?: number,
+  episode?: number
+): Promise<TMDBTranslationsResult | null> {
+  if (type === "tv" && season !== undefined && episode !== undefined) {
+    const epData = await tmdbFetch<TMDBTranslationsResult>(
+      `/tv/${tmdbId}/season/${season}/episode/${episode}/translations`,
+      {},
+      86400
+    );
+    if (epData && epData.translations && epData.translations.length > 0) {
+      return epData;
+    }
+  }
+
+  return tmdbFetch<TMDBTranslationsResult>(`/${type}/${tmdbId}/translations`, {}, 86400);
 }
 

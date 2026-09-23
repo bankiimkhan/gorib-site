@@ -19,9 +19,20 @@ import {
   SkipForward,
   Server,
   Download,
+  Subtitles,
+  Check,
+  Languages,
 } from "lucide-react";
-import { StreamSource } from "@/types/streaming";
+import { StreamSource, SubtitleTrack, AudioTrack } from "@/types/streaming";
 import { formatPlayerTime } from "@/lib/utils/formatters";
+import {
+  deduplicateSubtitleTracks,
+  deduplicateAudioTracks,
+  normalizeLanguageCode,
+  formatSubtitleLabel,
+  formatAudioLabel,
+} from "@/lib/utils/languages";
+import { useLanguagePreferences } from "@/lib/hooks/useLanguagePreferences";
 
 interface VideoPlayerProps {
   title: string;
@@ -54,6 +65,7 @@ export function VideoPlayer({
   const hideControlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const serverMenuRef = useRef<HTMLDivElement>(null);
+  const audioSubsRef = useRef<HTMLDivElement>(null);
 
   const [internalSourceIndex, setInternalSourceIndex] = useState(0);
   const activeSourceIndex = externalIndex !== undefined ? externalIndex : internalSourceIndex;
@@ -84,12 +96,91 @@ export function VideoPlayer({
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showServerMenu, setShowServerMenu] = useState(false);
+  const [showAudioSubsMenu, setShowAudioSubsMenu] = useState(false);
 
   // Settings
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [hlsLevels, setHlsLevels] = useState<{ id: number; height: number; bitrate: number }[]>([]);
   const [activeQuality, setActiveQuality] = useState<number>(-1); // -1 is Auto
-  const activeSubtitle = -1; // -1 is Off
+
+  // Language Preferences & Dynamic Tracks
+  const {
+    matchPreferredSubtitle,
+    matchPreferredAudio,
+    setPreferredSubtitle,
+    setPreferredAudio,
+  } = useLanguagePreferences();
+
+  const [activeSubtitleIndex, setActiveSubtitleIndex] = useState<number>(-1); // -1 is Off
+  const [availableSubtitles, setAvailableSubtitles] = useState<SubtitleTrack[]>([]);
+  const [activeAudioTrackIndex, setActiveAudioTrackIndex] = useState<number>(0);
+  const [availableAudioTracks, setAvailableAudioTracks] = useState<AudioTrack[]>([]);
+
+  // Synchronize available subtitles and audio tracks from current source and servers
+  useEffect(() => {
+    // Populate subtitles from currentSource
+    const sourceSubs = deduplicateSubtitleTracks(currentSource?.subtitles || []);
+    setAvailableSubtitles(sourceSubs);
+    const matchedSub = matchPreferredSubtitle(sourceSubs);
+    setActiveSubtitleIndex(matchedSub);
+
+    // Populate audio tracks from currentSource or sources
+    const tracks: AudioTrack[] = [];
+    if (currentSource?.audioTracks && currentSource.audioTracks.length > 0) {
+      tracks.push(...currentSource.audioTracks);
+    } else if (currentSource?.language) {
+      tracks.push({
+        id: `audio-src-${activeSourceIndex}`,
+        label: formatAudioLabel({ language: currentSource.language, isOriginal: true }),
+        language: currentSource.language,
+        default: true,
+        sourceIndex: activeSourceIndex,
+      });
+    }
+
+    // Include alternative language streams from other sources
+    sources.forEach((s, idx) => {
+      if (idx !== activeSourceIndex && s.language && s.language !== currentSource?.language) {
+        tracks.push({
+          id: `audio-server-${idx}`,
+          label: formatAudioLabel({
+            label: s.serverName,
+            language: s.language,
+            isDub: s.serverName?.toLowerCase().includes("dub"),
+          }),
+          language: s.language,
+          sourceIndex: idx,
+        });
+      }
+    });
+
+    const dedupedAudio = deduplicateAudioTracks(tracks);
+    if (dedupedAudio.length === 0) {
+      dedupedAudio.push({
+        id: "audio-default",
+        label: "Default (Single audio track)",
+        language: "en",
+        default: true,
+      });
+    }
+    setAvailableAudioTracks(dedupedAudio);
+    const matchedAudio = matchPreferredAudio(dedupedAudio);
+    setActiveAudioTrackIndex(matchedAudio);
+  }, [currentSource, sources, activeSourceIndex, matchPreferredSubtitle, matchPreferredAudio]);
+
+  // Synchronize text tracks mode without interrupting playback
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !video.textTracks) return;
+
+    for (let i = 0; i < video.textTracks.length; i++) {
+      if (i === activeSubtitleIndex) {
+        video.textTracks[i].mode = "showing";
+      } else {
+        video.textTracks[i].mode = "disabled";
+      }
+    }
+  }, [activeSubtitleIndex, availableSubtitles]);
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
 
@@ -131,6 +222,58 @@ export function VideoPlayer({
           if (initialTime > 0) {
             video.currentTime = initialTime;
           }
+        });
+
+        // Detect HLS Manifest Audio Tracks dynamically
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
+          if (data.audioTracks && data.audioTracks.length > 0) {
+            const hlsAudio: AudioTrack[] = data.audioTracks.map((trk, i) => ({
+              id: i,
+              label: formatAudioLabel({
+                label: trk.name,
+                language: trk.lang,
+              }),
+              language: normalizeLanguageCode(trk.lang || "en"),
+              default: Boolean(trk.default),
+            }));
+            const dedupedHlsAudio = deduplicateAudioTracks(hlsAudio);
+            setAvailableAudioTracks(dedupedHlsAudio);
+            const matchedIdx = matchPreferredAudio(dedupedHlsAudio);
+            setActiveAudioTrackIndex(matchedIdx);
+            if (hls.audioTrack !== matchedIdx) {
+              hls.audioTrack = matchedIdx;
+            }
+          }
+        });
+
+        // Detect HLS Manifest Subtitle Tracks dynamically
+        hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_, data) => {
+          if (data.subtitleTracks && data.subtitleTracks.length > 0) {
+            const hlsSubs: SubtitleTrack[] = data.subtitleTracks.map((trk) => ({
+              label: formatSubtitleLabel({ label: trk.name, language: trk.lang }),
+              language: normalizeLanguageCode(trk.lang || "en"),
+              url: "",
+              default: Boolean(trk.default),
+            }));
+            const combined = deduplicateSubtitleTracks([
+              ...(currentSource?.subtitles || []),
+              ...hlsSubs,
+            ]);
+            setAvailableSubtitles(combined);
+            const matchedSubIdx = matchPreferredSubtitle(combined);
+            setActiveSubtitleIndex(matchedSubIdx);
+            if (matchedSubIdx !== -1) {
+              hls.subtitleTrack = matchedSubIdx;
+            }
+          }
+        });
+
+        hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_, data) => {
+          setActiveAudioTrackIndex(data.id);
+        });
+
+        hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_, data) => {
+          setActiveSubtitleIndex(data.id);
         });
 
         hls.on(Hls.Events.ERROR, (_, data) => {
@@ -296,6 +439,58 @@ export function VideoPlayer({
     setShowSettings(false);
   };
 
+  const handleSelectSubtitle = useCallback(
+    (trackIndex: number) => {
+      setActiveSubtitleIndex(trackIndex);
+      if (trackIndex === -1) {
+        if (hlsRef.current) {
+          hlsRef.current.subtitleTrack = -1;
+        }
+        if (videoRef.current && videoRef.current.textTracks) {
+          for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+            videoRef.current.textTracks[i].mode = "disabled";
+          }
+        }
+        setPreferredSubtitle("off");
+      } else {
+        const selectedTrack = availableSubtitles[trackIndex];
+        if (selectedTrack) {
+          if (hlsRef.current && !selectedTrack.url) {
+            hlsRef.current.subtitleTrack = trackIndex;
+          }
+          if (videoRef.current && videoRef.current.textTracks) {
+            for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+              videoRef.current.textTracks[i].mode = i === trackIndex ? "showing" : "disabled";
+            }
+          }
+          setPreferredSubtitle(selectedTrack.language);
+        }
+      }
+      setShowAudioSubsMenu(false);
+    },
+    [availableSubtitles, setPreferredSubtitle]
+  );
+
+  const handleSelectAudio = useCallback(
+    (trackIndex: number) => {
+      setActiveAudioTrackIndex(trackIndex);
+      const selectedTrack = availableAudioTracks[trackIndex];
+      if (selectedTrack) {
+        if (hlsRef.current && selectedTrack.sourceIndex === undefined) {
+          hlsRef.current.audioTrack = trackIndex;
+        } else if (
+          selectedTrack.sourceIndex !== undefined &&
+          selectedTrack.sourceIndex !== activeSourceIndex
+        ) {
+          handleSelectSource(selectedTrack.sourceIndex);
+        }
+        setPreferredAudio(selectedTrack.language);
+      }
+      setShowAudioSubsMenu(false);
+    },
+    [availableAudioTracks, activeSourceIndex, setPreferredAudio]
+  );
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -349,9 +544,16 @@ export function VideoPlayer({
           e.preventDefault();
           toggleMute();
           break;
+        case "c":
+          e.preventDefault();
+          if (availableSubtitles.length > 0) {
+            handleSelectSubtitle(activeSubtitleIndex === -1 ? 0 : -1);
+          }
+          break;
         case "escape":
           setShowSettings(false);
           setShowServerMenu(false);
+          setShowAudioSubsMenu(false);
           setShowHelp(false);
           break;
         case "?":
@@ -363,9 +565,17 @@ export function VideoPlayer({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [togglePlay, seekRelative, toggleFullscreen, toggleMute]);
+  }, [
+    togglePlay,
+    seekRelative,
+    toggleFullscreen,
+    toggleMute,
+    availableSubtitles,
+    activeSubtitleIndex,
+    handleSelectSubtitle,
+  ]);
 
-  // Click outside listener for settings and server menus
+  // Click outside listener for settings, server, and audio/subtitle menus
   useEffect(() => {
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -383,13 +593,20 @@ export function VideoPlayer({
       ) {
         setShowServerMenu(false);
       }
+      if (
+        showAudioSubsMenu &&
+        audioSubsRef.current &&
+        !audioSubsRef.current.contains(target)
+      ) {
+        setShowAudioSubsMenu(false);
+      }
     };
 
-    if (showSettings || showServerMenu) {
+    if (showSettings || showServerMenu || showAudioSubsMenu) {
       document.addEventListener("mousedown", handleDocumentClick);
       return () => document.removeEventListener("mousedown", handleDocumentClick);
     }
-  }, [showSettings, showServerMenu]);
+  }, [showSettings, showServerMenu, showAudioSubsMenu]);
 
   const showControlsTemporarily = () => {
     setControlsVisible(true);
@@ -444,16 +661,19 @@ export function VideoPlayer({
         onClick={togglePlay}
         className="h-full w-full object-contain cursor-pointer"
       >
-        {currentSource?.subtitles?.map((sub, i) => (
-          <track
-            key={i}
-            label={sub.label}
-            kind="subtitles"
-            srcLang={sub.language}
-            src={sub.url}
-            default={sub.default || i === activeSubtitle}
-          />
-        ))}
+        {availableSubtitles.map((sub, i) => {
+          if (!sub.url) return null;
+          return (
+            <track
+              key={`${sub.language}-${i}-${sub.url}`}
+              label={sub.label}
+              kind="subtitles"
+              srcLang={sub.language}
+              src={sub.url}
+              default={i === activeSubtitleIndex}
+            />
+          );
+        })}
       </video>
 
       {/* Buffering Indicator */}
@@ -709,11 +929,143 @@ export function VideoPlayer({
               </div>
             )}
 
+            {/* Audio & Subtitles Trigger */}
+            <div ref={audioSubsRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAudioSubsMenu((prev) => !prev);
+                  setShowSettings(false);
+                  setShowServerMenu(false);
+                }}
+                className={`p-2 rounded-full transition-colors flex items-center justify-center ${
+                  showAudioSubsMenu
+                    ? "bg-amber-500 text-black"
+                    : activeSubtitleIndex !== -1
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    : "text-zinc-300 hover:text-white"
+                }`}
+                title="Audio & Subtitles (C to toggle)"
+                aria-label="Audio and subtitles"
+              >
+                <Subtitles className="h-5 w-5" />
+              </button>
+
+              {showAudioSubsMenu && (
+                <div className="absolute right-0 bottom-12 w-72 sm:w-80 rounded-2xl border border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl z-50 text-xs">
+                  <div className="border-b border-zinc-800 pb-2 mb-3 flex items-center justify-between">
+                    <span className="font-bold text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <Subtitles className="h-3.5 w-3.5 text-amber-500" />
+                      Audio & Subtitles
+                    </span>
+                    {activeSubtitleIndex !== -1 && (
+                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                        CC Active
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
+                    {/* Audio Column */}
+                    <div className="space-y-1.5 border-r border-zinc-800/80 pr-2">
+                      <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Volume2 className="h-3 w-3 text-zinc-400" />
+                        Audio
+                      </div>
+                      {availableAudioTracks.length > 0 ? (
+                        availableAudioTracks.map((trk, idx) => {
+                          const isSelected = idx === activeAudioTrackIndex;
+                          return (
+                            <button
+                              key={trk.id || idx}
+                              type="button"
+                              onClick={() => handleSelectAudio(idx)}
+                              className={`w-full rounded-lg px-2.5 py-1.5 text-left flex items-center justify-between text-xs transition-colors ${
+                                isSelected
+                                  ? "bg-amber-500/20 text-amber-400 font-bold"
+                                  : "text-zinc-300 hover:bg-zinc-900"
+                              }`}
+                            >
+                              <span className="truncate pr-1">{trk.label}</span>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-[11px] text-zinc-500 italic py-1">
+                          Default audio
+                        </div>
+                      )}
+                      {availableAudioTracks.length === 1 && (
+                        <div className="text-[10px] text-zinc-500 pt-1 border-t border-zinc-800/50">
+                          Single audio stream
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Subtitles Column */}
+                    <div className="space-y-1.5 pl-1">
+                      <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Subtitles className="h-3 w-3 text-zinc-400" />
+                        Subtitles
+                      </div>
+                      {/* Off option */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSubtitle(-1)}
+                        className={`w-full rounded-lg px-2.5 py-1.5 text-left flex items-center justify-between text-xs transition-colors ${
+                          activeSubtitleIndex === -1
+                            ? "bg-amber-500/20 text-amber-400 font-bold"
+                            : "text-zinc-300 hover:bg-zinc-900"
+                        }`}
+                      >
+                        <span>Off</span>
+                        {activeSubtitleIndex === -1 && (
+                          <Check className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                        )}
+                      </button>
+
+                      {availableSubtitles.length > 0 ? (
+                        availableSubtitles.map((sub, idx) => {
+                          const isSelected = idx === activeSubtitleIndex;
+                          return (
+                            <button
+                              key={`${sub.language}-${idx}`}
+                              type="button"
+                              onClick={() => handleSelectSubtitle(idx)}
+                              className={`w-full rounded-lg px-2.5 py-1.5 text-left flex items-center justify-between text-xs transition-colors ${
+                                isSelected
+                                  ? "bg-amber-500/20 text-amber-400 font-bold"
+                                  : "text-zinc-300 hover:bg-zinc-900"
+                              }`}
+                            >
+                              <span className="truncate pr-1">{sub.label}</span>
+                              {isSelected && (
+                                <Check className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-[11px] text-zinc-500 italic py-2 leading-tight">
+                          No subtitles available for this title
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Settings Trigger */}
             <div ref={settingsRef} className="relative">
               <button
                 type="button"
-                onClick={() => setShowSettings((prev) => !prev)}
+                onClick={() => {
+                  setShowSettings((prev) => !prev);
+                  setShowAudioSubsMenu(false);
+                  setShowServerMenu(false);
+                }}
                 className={`p-2 rounded-full transition-colors ${
                   showSettings ? "bg-amber-500 text-black" : "text-zinc-300 hover:text-white"
                 }`}
@@ -817,6 +1169,10 @@ export function VideoPlayer({
               <div className="flex justify-between">
                 <span>F</span>
                 <span className="font-semibold text-zinc-400">Toggle Fullscreen</span>
+              </div>
+              <div className="flex justify-between">
+                <span>C</span>
+                <span className="font-semibold text-zinc-400">Toggle Subtitles</span>
               </div>
             </div>
             <button

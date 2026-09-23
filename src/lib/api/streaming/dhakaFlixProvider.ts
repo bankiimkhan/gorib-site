@@ -1,4 +1,5 @@
-import { StreamSource } from "@/types/streaming";
+import { StreamSource, SubtitleTrack, AudioTrack } from "@/types/streaming";
+import { formatSubtitleLabel, formatAudioLabel } from "@/lib/utils/languages";
 
 const MOVIE_HOST = process.env.DHAKA_FLIX_MOVIE_HOST || "http://172.16.50.14";
 const TV_HOST = process.env.DHAKA_FLIX_TV_HOST || "http://172.16.50.12";
@@ -55,6 +56,56 @@ async function fetchDirectory(url: string, timeoutMs = 2500): Promise<string | n
 }
 
 /**
+ * Extracts subtitle tracks from directory file links
+ */
+function extractSubtitlesFromDirectory(
+  fileLinks: { href: string; name: string }[],
+  baseUrl: string
+): SubtitleTrack[] {
+  const subtitleFiles = fileLinks.filter((f) => /\.(srt|vtt)$/i.test(f.href));
+  const tracks: SubtitleTrack[] = [];
+
+  for (const sub of subtitleFiles) {
+    const fullUrl = sub.href.startsWith("http") ? sub.href : `${baseUrl}${sub.href}`;
+    const nameLower = sub.name.toLowerCase();
+    let lang = "en";
+    if (nameLower.includes("bangla") || nameLower.includes("bengali") || nameLower.includes(".bn.")) {
+      lang = "bn";
+    } else if (nameLower.includes("hindi") || nameLower.includes(".hi.")) {
+      lang = "hi";
+    } else if (nameLower.includes("spanish") || nameLower.includes(".es.")) {
+      lang = "es";
+    }
+
+    tracks.push({
+      label: formatSubtitleLabel({ label: sub.name.replace(/\.(srt|vtt)$/i, ""), language: lang }),
+      language: lang,
+      url: fullUrl,
+      default: lang === "en",
+    });
+  }
+
+  return tracks;
+}
+
+/**
+ * Detects audio language from file or folder naming conventions
+ */
+function detectAudioLanguageFromContext(text: string): { language: string; isDub?: boolean } {
+  const lower = text.toLowerCase();
+  if (lower.includes("dual audio") || (lower.includes("hindi") && lower.includes("english"))) {
+    return { language: "hi", isDub: true };
+  }
+  if (lower.includes("hindi")) {
+    return { language: "hi", isDub: lower.includes("dub") };
+  }
+  if (lower.includes("bangla") || lower.includes("bengali")) {
+    return { language: "bn", isDub: lower.includes("dub") };
+  }
+  return { language: "en", isDub: false };
+}
+
+/**
  * Resolves a movie video stream from DhakaFlix (172.16.50.14)
  */
 export async function resolveDhakaFlixMovie(
@@ -104,11 +155,31 @@ export async function resolveDhakaFlixMovie(
           ? videoFile.href
           : `${MOVIE_HOST}${videoFile.href}`;
 
+        const subtitleTracks = extractSubtitlesFromDirectory(fileLinks, folderUrl);
+        const audioInfo = detectAudioLanguageFromContext(matchedFolder.name + " " + videoFile.name);
+
+        const audioTracks: AudioTrack[] = [
+          {
+            id: `dhakaflix-audio-${audioInfo.language}`,
+            label: formatAudioLabel({
+              language: audioInfo.language,
+              isDub: audioInfo.isDub,
+              isOriginal: !audioInfo.isDub,
+            }),
+            language: audioInfo.language,
+            default: true,
+            isDub: audioInfo.isDub,
+          },
+        ];
+
         return {
           url: fileUrl,
           format: "mp4", // HTML5 video can play direct HTTP range media
           quality: "1080p",
           serverName: "DhakaFlix (BDIX Local 1080p)",
+          language: audioInfo.language,
+          audioTracks,
+          subtitles: subtitleTracks.length > 0 ? subtitleTracks : undefined,
         };
       }
     }
@@ -177,11 +248,31 @@ export async function resolveDhakaFlixEpisode(
       ? matchedEp.href
       : `${TV_HOST}${matchedEp.href}`;
 
+    const subtitleTracks = extractSubtitlesFromDirectory(episodeFiles, seasonUrl);
+    const audioInfo = detectAudioLanguageFromContext(matchedShow.name + " " + matchedEp.name);
+
+    const audioTracks: AudioTrack[] = [
+      {
+        id: `dhakaflix-audio-${audioInfo.language}`,
+        label: formatAudioLabel({
+          language: audioInfo.language,
+          isDub: audioInfo.isDub,
+          isOriginal: !audioInfo.isDub,
+        }),
+        language: audioInfo.language,
+        default: true,
+        isDub: audioInfo.isDub,
+      },
+    ];
+
     return {
       url: fileUrl,
       format: "mp4",
       quality: "720p",
       serverName: `DhakaFlix (BDIX Local S${season}:E${episode})`,
+      language: audioInfo.language,
+      audioTracks,
+      subtitles: subtitleTracks.length > 0 ? subtitleTracks : undefined,
     };
   }
 

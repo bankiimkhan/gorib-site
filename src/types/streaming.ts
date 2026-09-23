@@ -9,11 +9,22 @@ export interface SubtitleTrack {
   default?: boolean;
 }
 
+export interface AudioTrack {
+  id: string | number;
+  label: string;
+  language: string;
+  default?: boolean;
+  isDub?: boolean;
+  channels?: number;
+  sourceIndex?: number;
+}
+
 export interface StreamSource {
   url: string;
   format: StreamFormat;
   quality?: "1080p" | "720p" | "480p" | "360p" | "auto";
   language?: string;
+  audioTracks?: AudioTrack[];
   subtitles?: SubtitleTrack[];
   headers?: Record<string, string>;
   serverName?: string;
@@ -28,6 +39,8 @@ export interface StreamResult {
   sources: StreamSource[];
   defaultSourceIndex: number;
   duration?: number; // duration in seconds if known
+  availableSubtitles?: SubtitleTrack[];
+  availableAudio?: AudioTrack[];
 }
 
 export interface StreamResolutionParams {

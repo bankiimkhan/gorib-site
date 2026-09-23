@@ -3,6 +3,7 @@ import { getExternalIds } from "@/lib/api/tmdb/client";
 import { mockStreamingProvider } from "./mockProvider";
 import { customStreamingProvider } from "./customProvider";
 import { resolveDhakaFlixMovie, resolveDhakaFlixEpisode } from "./dhakaFlixProvider";
+import { detectAvailableLanguages } from "./trackDetector";
 
 /**
  * Returns the currently active primary streaming provider (Server 1)
@@ -39,8 +40,8 @@ export async function resolveMovieStream(params: {
 
   const provider = getActiveStreamingProvider();
 
-  // Resolve Server 1 (Primary Streaming API / Cloud) and Server 2 (DhakaFlix BDIX) in parallel
-  const [server1Result, server2Source] = await Promise.all([
+  // Resolve Server 1, Server 2 (DhakaFlix BDIX), and dynamic language detection in parallel
+  const [server1Result, server2Source, detectedLanguages] = await Promise.all([
     provider.getMovieStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
@@ -48,6 +49,11 @@ export async function resolveMovieStream(params: {
       year: params.year,
     }),
     resolveDhakaFlixMovie(params.title, params.year).catch(() => null),
+    detectAvailableLanguages({
+      type: "movie",
+      tmdbId: params.tmdbId,
+      title: params.title,
+    }).catch(() => null),
   ]);
 
   const sources = [...server1Result.sources];
@@ -57,9 +63,34 @@ export async function resolveMovieStream(params: {
     sources.push(server2Source);
   }
 
+  // Merge detected subtitles and audio tracks
+  const availableSubtitles =
+    server1Result.availableSubtitles && server1Result.availableSubtitles.length > 0
+      ? server1Result.availableSubtitles
+      : detectedLanguages?.availableSubtitles || [];
+
+  const availableAudio =
+    server1Result.availableAudio && server1Result.availableAudio.length > 0
+      ? server1Result.availableAudio
+      : detectedLanguages?.availableAudio || [];
+
+  // Ensure sources have subtitles attached if they don't already have specific subtitles
+  const enrichedSources = sources.map((src) => {
+    if (!src.subtitles || src.subtitles.length === 0) {
+      return {
+        ...src,
+        subtitles: availableSubtitles.length > 0 ? availableSubtitles : undefined,
+        audioTracks: src.audioTracks || (availableAudio.length > 0 ? availableAudio : undefined),
+      };
+    }
+    return src;
+  });
+
   return {
     ...server1Result,
-    sources,
+    sources: enrichedSources,
+    availableSubtitles: availableSubtitles.length > 0 ? availableSubtitles : undefined,
+    availableAudio: availableAudio.length > 0 ? availableAudio : undefined,
   };
 }
 
@@ -88,7 +119,7 @@ export async function resolveEpisodeStream(params: {
 
   const provider = getActiveStreamingProvider();
 
-  const [server1Result, server2Source] = await Promise.all([
+  const [server1Result, server2Source, detectedLanguages] = await Promise.all([
     provider.getEpisodeStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
@@ -97,6 +128,13 @@ export async function resolveEpisodeStream(params: {
       title: params.title,
     }),
     resolveDhakaFlixEpisode(params.title, params.season, params.episode).catch(() => null),
+    detectAvailableLanguages({
+      type: "tv",
+      tmdbId: params.tmdbId,
+      season: params.season,
+      episode: params.episode,
+      title: params.title,
+    }).catch(() => null),
   ]);
 
   const sources = [...server1Result.sources];
@@ -105,8 +143,32 @@ export async function resolveEpisodeStream(params: {
     sources.push(server2Source);
   }
 
+  // Merge detected subtitles and audio tracks for this specific episode
+  const availableSubtitles =
+    server1Result.availableSubtitles && server1Result.availableSubtitles.length > 0
+      ? server1Result.availableSubtitles
+      : detectedLanguages?.availableSubtitles || [];
+
+  const availableAudio =
+    server1Result.availableAudio && server1Result.availableAudio.length > 0
+      ? server1Result.availableAudio
+      : detectedLanguages?.availableAudio || [];
+
+  const enrichedSources = sources.map((src) => {
+    if (!src.subtitles || src.subtitles.length === 0) {
+      return {
+        ...src,
+        subtitles: availableSubtitles.length > 0 ? availableSubtitles : undefined,
+        audioTracks: src.audioTracks || (availableAudio.length > 0 ? availableAudio : undefined),
+      };
+    }
+    return src;
+  });
+
   return {
     ...server1Result,
-    sources,
+    sources: enrichedSources,
+    availableSubtitles: availableSubtitles.length > 0 ? availableSubtitles : undefined,
+    availableAudio: availableAudio.length > 0 ? availableAudio : undefined,
   };
 }

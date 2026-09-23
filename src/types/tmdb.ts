@@ -16,6 +16,7 @@ export interface TMDBMovie {
   popularity: number;
   genre_ids?: number[];
   adult: boolean;
+  original_language?: string;
 }
 
 export interface TMDBTVShow {
@@ -30,6 +31,33 @@ export interface TMDBTVShow {
   vote_count: number;
   popularity: number;
   genre_ids?: number[];
+  original_language?: string;
+}
+
+export interface TMDBSpokenLanguage {
+  english_name: string;
+  iso_639_1: string;
+  name: string;
+}
+
+export interface TMDBTranslationData {
+  title?: string;
+  name?: string;
+  overview?: string;
+  tagline?: string;
+}
+
+export interface TMDBTranslation {
+  iso_3166_1: string;
+  iso_639_1: string;
+  name: string;
+  english_name: string;
+  data?: TMDBTranslationData;
+}
+
+export interface TMDBTranslationsResult {
+  id: number;
+  translations: TMDBTranslation[];
 }
 
 export interface TMDBMovieDetails extends TMDBMovie {
@@ -38,6 +66,7 @@ export interface TMDBMovieDetails extends TMDBMovie {
   tagline: string | null;
   status: string;
   imdb_id: string | null;
+  spoken_languages?: TMDBSpokenLanguage[];
   credits?: TMDBCredits;
   videos?: TMDBVideos;
   recommendations?: TMDBPageResult<TMDBMovie>;
@@ -52,6 +81,7 @@ export interface TMDBTVDetails extends TMDBTVShow {
   last_air_date: string | null;
   status: string;
   tagline: string | null;
+  spoken_languages?: TMDBSpokenLanguage[];
   seasons: TMDBSeasonSummary[];
   credits?: TMDBCredits;
   videos?: TMDBVideos;

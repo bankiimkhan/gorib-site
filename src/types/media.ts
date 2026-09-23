@@ -67,6 +67,8 @@ export interface MediaItem {
   cast?: CastMember[];
   crew?: CrewMember[];
   director?: string;
+  originalLanguage?: string;
+  spokenLanguages?: string[];
 }
 
 export interface TVShow extends MediaItem {
