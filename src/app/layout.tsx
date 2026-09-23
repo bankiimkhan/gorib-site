@@ -62,7 +62,7 @@ s.src = ${JSON.stringify(process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL)};
 s.async = true;
 s.referrerPolicy = 'no-referrer-when-downgrade';
 l.parentNode.insertBefore(s, l);
-})({});`,
+})({ appendTo: '[data-custom-placement="home-top"], [data-custom-placement="player-bottom"], [data-custom-placement="details-mid"], [data-custom-placement="home-feed"]' });`,
               }}
             />
           )}

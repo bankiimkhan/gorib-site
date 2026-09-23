@@ -32,7 +32,12 @@ export function loadAdScript(src: string, attributes: Record<string, string> = {
   const promise = new Promise<boolean>((resolve) => {
     try {
       const script = document.createElement("script");
-      (script as unknown as { settings?: Record<string, unknown> }).settings = {};
+      const appendSelector =
+        attributes.appendTo ||
+        '[data-custom-placement="home-top"], [data-custom-placement="player-bottom"], [data-custom-placement="details-mid"], [data-custom-placement="home-feed"]';
+      (script as unknown as { settings?: Record<string, unknown> }).settings = {
+        appendTo: appendSelector,
+      };
       script.src = src;
       script.async = true;
       if (attributes.crossOrigin) {
