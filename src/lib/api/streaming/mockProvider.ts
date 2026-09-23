@@ -16,7 +16,7 @@ export class MockStreamingProvider implements StreamingProvider {
   }): Promise<StreamResult> {
     const sources: StreamSource[] = [
       {
-        url: `https://player.vidsrc.nl/embed/movie/${params.tmdbId}`,
+        url: `https://vidsrc.sh/embed/movie/${params.tmdbId}`,
         format: "iframe",
         quality: "1080p",
         serverName: "Server 1 (VidSrc HD)",
@@ -53,7 +53,7 @@ export class MockStreamingProvider implements StreamingProvider {
   }): Promise<StreamResult> {
     const sources: StreamSource[] = [
       {
-        url: `https://player.vidsrc.nl/embed/tv/${params.tmdbId}/${params.season}/${params.episode}`,
+        url: `https://vidsrc.sh/embed/tv/${params.tmdbId}/${params.season}/${params.episode}`,
         format: "iframe",
         quality: "1080p",
         serverName: `Server 1 (VidSrc S${params.season}:E${params.episode})`,
