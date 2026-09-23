@@ -52,7 +52,19 @@ jobs:
           # have to be set here — the vars in wrangler.jsonc only reach the runtime.
           NEXT_PUBLIC_SITE_NAME: gorib.lol
           NEXT_PUBLIC_SITE_URL: https://gorib.lol
-          NEXT_PUBLIC_AD_SLOTS_ENABLED: "false"
+          NEXT_PUBLIC_ADS_ENABLED: "true"
+          NEXT_PUBLIC_AD_SLOTS_ENABLED: "true"
+          NEXT_PUBLIC_AD_PROVIDER: "custom"
+          NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL: "https://unfoldedtrade.com/b/XbV-s.dwG/l-0wYfWbcx/oe/mj9JuUZlUfl/kNPCTEcv0LN/TFQi0SO/DoU/tTNPzoQm1aN/DyQf4hODQL"
+          NEXT_PUBLIC_AD_HOME_TOP: "true"
+          NEXT_PUBLIC_AD_HOME_FEED: "true"
+          NEXT_PUBLIC_AD_DETAILS_MID: "true"
+          NEXT_PUBLIC_AD_PLAYER_BOTTOM: "true"
+          NEXT_PUBLIC_AD_CATALOG_HEADER: "false"
+          NEXT_PUBLIC_AD_CATALOG_IN_FEED: "false"
+          NEXT_PUBLIC_AD_SEARCH: "false"
+          NEXT_PUBLIC_AD_LIVE_TV: "false"
+          NEXT_PUBLIC_AD_MOBILE_STICKY: "false"
           TMDB_BASE_URL: https://api.themoviedb.org/3
           TMDB_IMAGE_BASE_URL: https://image.tmdb.org/t/p
           STREAMING_PROVIDER: mock
