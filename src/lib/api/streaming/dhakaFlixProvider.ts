@@ -327,6 +327,27 @@ function getCandidateMovieDirectories(year?: number): CandidateDirectory[] {
   return dirs;
 }
 
+interface CatalogEntry {
+  title: string;
+  videoUrl: string;
+  year?: number;
+  quality?: "1080p" | "720p" | "480p" | "360p" | "auto";
+  language?: string;
+}
+
+let cachedCatalog: CatalogEntry[] | null = null;
+
+function loadCatalog(): CatalogEntry[] {
+  if (cachedCatalog !== null) return cachedCatalog;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    cachedCatalog = require("./dhakaflix-catalog.json");
+  } catch {
+    cachedCatalog = [];
+  }
+  return cachedCatalog || [];
+}
+
 /**
  * Resolves a movie video stream from DhakaFlix across Server 14 and Server 7
  */
@@ -334,6 +355,50 @@ export async function resolveDhakaFlixMovie(
   title: string,
   year?: number
 ): Promise<StreamSource | null> {
+  // 1. Fast lookup from prebuilt DhakaFlix catalog (available on live site & edge runtimes)
+  const catalog = loadCatalog();
+  if (catalog && catalog.length > 0) {
+    let topEntry: CatalogEntry | null = null;
+    let topScore = 0;
+
+    for (const entry of catalog) {
+      const score = scoreFolderMatch(entry.title, title, year);
+      if (score > topScore) {
+        topScore = score;
+        topEntry = entry;
+      }
+      if (topScore >= 120) break; // Exact match found
+    }
+
+    if (topEntry && topScore >= 85) {
+      const audioInfo = detectAudioLanguageFromContext(topEntry.title + " " + topEntry.videoUrl);
+      const quality = (topEntry.quality || "1080p") as "1080p" | "720p" | "480p";
+      const lang = topEntry.language || audioInfo.language;
+
+      return {
+        url: topEntry.videoUrl,
+        format: "mp4",
+        quality,
+        serverName: `DhakaFlix (BDIX Local ${quality})`,
+        language: lang,
+        audioTracks: [
+          {
+            id: `dhakaflix-audio-${lang}`,
+            label: formatAudioLabel({
+              language: lang,
+              isDub: audioInfo.isDub,
+              isOriginal: !audioInfo.isDub,
+            }),
+            language: lang,
+            default: true,
+            isDub: audioInfo.isDub,
+          },
+        ],
+      };
+    }
+  }
+
+  // 2. Real-time dynamic network probe (for localhost or local BDIX network)
   const candidateDirs = getCandidateMovieDirectories(year);
 
   const priorityGroups = [

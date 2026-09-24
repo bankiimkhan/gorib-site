@@ -13,7 +13,8 @@
     "deploy": "opennextjs-cloudflare build && wrangler deploy",
     "deploy:cf": "opennextjs-cloudflare build && wrangler deploy",
     "preview": "opennextjs-cloudflare build && wrangler dev",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "sync:dhakaflix": "node scripts/syncDhakaFlix.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

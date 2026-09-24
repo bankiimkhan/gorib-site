@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Server, Cloud, Zap, ExternalLink, Download, Check, Copy } from "lucide-react";
+import { Server, Cloud, Zap, ExternalLink, Check, Copy } from "lucide-react";
 import { StreamSource } from "@/types/streaming";
 
 interface ServerSelectorProps {
@@ -105,17 +105,6 @@ export function ServerSelector({
             >
               <ExternalLink className="h-3.5 w-3.5" />
               <span>Play in VLC</span>
-            </a>
-
-            {/* Direct Download */}
-            <a
-              href={currentSource.url}
-              download
-              className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-1.5 font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors border border-zinc-700"
-              title="Download at 100 Mbps"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Download File</span>
             </a>
 
             {/* Copy Link */}

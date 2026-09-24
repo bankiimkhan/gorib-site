@@ -18,7 +18,6 @@ import {
   RefreshCw,
   SkipForward,
   Server,
-  Download,
   Subtitles,
   Check,
   Languages,
@@ -351,7 +350,7 @@ export function VideoPlayer({
     setHasError(true);
     const isBDIX = currentSource?.url.includes("172.16.") || currentSource?.url.endsWith(".mkv");
     if (isBDIX) {
-      setErrorMessage("This BDIX file uses MKV/HEVC encoding which your browser cannot decode natively.");
+      setErrorMessage("DhakaFlix BDIX is only streamable on supported local ISP networks (172.16.50.x). Please switch to Server 1 for global in-browser streaming.");
     } else {
       setErrorMessage("Unable to load video stream from available servers.");
     }
@@ -693,11 +692,11 @@ export function VideoPlayer({
             <AlertCircle className="h-7 w-7" />
           </div>
           <h3 className="text-lg font-bold text-white mb-2">
-            {isCurrentBDIX ? "Local BDIX MKV Codec Notice" : "Playback Unavailable"}
+            {isCurrentBDIX ? "Local BDIX Network Notice" : "Playback Unavailable"}
           </h3>
           <p className="max-w-md text-xs sm:text-sm text-zinc-400 mb-6 leading-relaxed">
             {isCurrentBDIX
-              ? "This high-speed BDIX title uses 1080p HEVC (MKV) encoding which web browsers cannot decode in-browser. You can launch it in VLC Player at 100 Mbps or switch to Server 1 for in-browser streaming."
+              ? "This high-speed title is hosted on DhakaFlix BDIX LAN (172.16.50.x). It requires an active connection to a supported local BDIX ISP. If you are not on a supported network or playback cannot start in your browser, switch to Server 1 below."
               : errorMessage || "Unable to play this title right now."}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -721,17 +720,6 @@ export function VideoPlayer({
               <RefreshCw className="h-4 w-4" />
               <span>Switch to Server 1 (In-Browser)</span>
             </button>
-
-            {isCurrentBDIX && (
-              <a
-                href={currentSource?.url}
-                download
-                className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-zinc-300 hover:text-white transition-colors border border-zinc-800"
-              >
-                <Download className="h-4 w-4" />
-                <span>Direct Download</span>
-              </a>
-            )}
           </div>
         </div>
       )}
