@@ -3,6 +3,8 @@ import { getExternalIds } from "@/lib/api/tmdb/client";
 import { mockStreamingProvider } from "./mockProvider";
 import { customStreamingProvider } from "./customProvider";
 import { detectAvailableLanguages } from "./trackDetector";
+import { getStremioSources } from "./stremioProvider";
+import { getDramachiMovieSources, getDramachiEpisodeSources } from "./dramachiProvider";
 
 /**
  * Returns the currently active primary streaming provider (Server 1)
@@ -40,7 +42,7 @@ export async function resolveMovieStream(params: {
   const provider = getActiveStreamingProvider();
 
   // Resolve the provider sources and dynamic language detection in parallel
-  const [server1Result, detectedLanguages] = await Promise.all([
+  const [server1Result, detectedLanguages, addonSources, dramachiSources] = await Promise.all([
     provider.getMovieStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
@@ -52,9 +54,11 @@ export async function resolveMovieStream(params: {
       tmdbId: params.tmdbId,
       title: params.title,
     }).catch(() => null),
+    getStremioSources({ imdbId: resolvedImdbId }).catch(() => []),
+    getDramachiMovieSources({ title: params.title, year: params.year }).catch(() => []),
   ]);
 
-  const sources = server1Result.sources;
+  const sources = [...server1Result.sources, ...addonSources, ...dramachiSources];
 
   // Merge detected subtitles and audio tracks
   const availableSubtitles =
@@ -95,6 +99,7 @@ export async function resolveEpisodeStream(params: {
   season: number;
   episode: number;
   title: string;
+  year?: number;
   imdbId?: string;
 }): Promise<StreamResult> {
   let resolvedImdbId = params.imdbId;
@@ -112,7 +117,7 @@ export async function resolveEpisodeStream(params: {
 
   const provider = getActiveStreamingProvider();
 
-  const [server1Result, detectedLanguages] = await Promise.all([
+  const [server1Result, detectedLanguages, addonSources, dramachiSources] = await Promise.all([
     provider.getEpisodeStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
@@ -127,9 +132,20 @@ export async function resolveEpisodeStream(params: {
       episode: params.episode,
       title: params.title,
     }).catch(() => null),
+    getStremioSources({
+      imdbId: resolvedImdbId,
+      season: params.season,
+      episode: params.episode,
+    }).catch(() => []),
+    getDramachiEpisodeSources({
+      title: params.title,
+      year: params.year,
+      season: params.season,
+      episode: params.episode,
+    }).catch(() => []),
   ]);
 
-  const sources = server1Result.sources;
+  const sources = [...server1Result.sources, ...addonSources, ...dramachiSources];
 
   // Merge detected subtitles and audio tracks for this specific episode
   const availableSubtitles =

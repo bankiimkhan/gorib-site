@@ -69,6 +69,7 @@ export default async function WatchTVPage({ params, searchParams }: WatchTVPageP
     season,
     episode,
     title: tvShow.title,
+    year: tvShow.year,
     imdbId: tvShow.imdbId,
   });
 
