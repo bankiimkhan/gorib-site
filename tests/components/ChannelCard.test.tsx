@@ -69,7 +69,7 @@ describe("ChannelCard Component", () => {
       />
     );
 
-    const favButton = getByRole("button", { name: /Add favorite channel/i });
+    const favButton = getByRole("button", { name: /Add ATN Bangla to favorites/i });
     fireEvent.click(favButton);
 
     expect(onToggleFavorite).toHaveBeenCalledWith("ATNBangla.bd@SD");

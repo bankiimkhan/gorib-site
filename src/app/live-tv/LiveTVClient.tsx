@@ -6,6 +6,7 @@ import { StreamSource } from "@/types/streaming";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { ChannelCard } from "@/components/iptv/ChannelCard";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useLiveTVFavorites } from "@/lib/hooks/useLiveTVFavorites";
 import {
   Tv,
@@ -14,8 +15,9 @@ import {
   Share2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   RefreshCw,
-  Radio,
+  Loader2,
   ExternalLink,
   Check,
   X,
@@ -216,7 +218,7 @@ export function LiveTVClient({
         url: streamUrl,
         format: "hls" as const,
         quality: q,
-        serverName: useProxy ? "Gorib Proxy Server" : "Direct Broadcast Stream",
+        serverName: useProxy ? "Proxy" : "Direct",
       },
     ];
   }, [activeChannel, streamUrl, useProxy]);
@@ -233,331 +235,217 @@ export function LiveTVClient({
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-20">
-      {/* Page Header */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-600/20 text-red-500 border border-red-500/30">
-              <Radio className="h-4 w-4 animate-pulse" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Live TV Channels
-            </h1>
-          </div>
-          <p className="mt-1 text-xs sm:text-sm text-zinc-400">
-            Stream free-to-air international and regional television broadcasts powered by iptv-org.
-          </p>
-        </div>
-
-        {/* Global Stats badge */}
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>{channels.length}+ Channels Ready</span>
-        </div>
-      </div>
-
-      {/* Main Grid: Cinema Player Theater */}
+    <div className="pb-20 pt-16 lg:pt-[68px]">
       {activeChannel && (
-        <div className="mb-10 space-y-4">
-          <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
-            <VideoPlayer
-              key={streamUrl}
-              title={activeChannel.name}
-              sources={playerSources}
-              isLive={true}
-            />
-          </div>
-
-          {/* Active Channel Details Bar */}
-          <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-4 backdrop-blur-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-950 border border-zinc-800 p-2 overflow-hidden flex-shrink-0">
-                {activeChannel.logo ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={activeChannel.logo}
-                    alt={activeChannel.name}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <Tv className="h-5 w-5 text-amber-500" />
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-bold text-white">{activeChannel.name}</h2>
-                  <span className="flex items-center gap-1 rounded-full bg-red-600/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30 uppercase tracking-wide">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                    LIVE
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-300 font-medium">
-                    {activeChannel.group}
-                  </span>
-                  {activeChannel.country && (
-                    <span className="uppercase text-zinc-400 font-mono text-[11px]">
-                      {activeChannel.country}
-                    </span>
-                  )}
-                  {activeChannel.quality && (
-                    <span className="rounded bg-amber-500/20 px-2 py-0.5 font-bold text-amber-400 text-[10px]">
-                      {activeChannel.quality}
-                    </span>
-                  )}
-                  {useProxy && (
-                    <span className="rounded bg-purple-500/20 px-2 py-0.5 font-medium text-purple-300 text-[10px] border border-purple-500/30">
-                      Proxied Stream
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Actions: Prev, Next, Proxy Toggle, VLC, Share, Favorite */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePrevChannel}
-                className="flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-                title="Previous Channel"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Prev</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleNextChannel}
-                className="flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-                title="Next Channel"
-              >
-                <span>Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setUseProxy((prev) => !prev)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border ${
-                  useProxy
-                    ? "bg-purple-600/30 text-purple-300 border-purple-500/40"
-                    : "bg-zinc-800/80 text-zinc-400 border-zinc-700 hover:text-zinc-200"
-                }`}
-                title="Toggle CORS Proxy mode if the stream fails in browser"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${useProxy ? "animate-spin" : ""}`} />
-                <span>{useProxy ? "Proxy On" : "Enable Proxy"}</span>
-              </button>
-
-              <a
-                href={`vlc://${activeChannel.url}`}
-                className="hidden sm:flex items-center gap-1 rounded-lg bg-zinc-800/80 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-                title="Open stream in VLC Media Player"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>VLC</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={handleShare}
-                className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-                title="Share Channel Link"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span>Share</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleFavorite(activeChannel.id)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  isFavorite(activeChannel.id)
-                    ? "bg-amber-500 text-black font-bold hover:bg-amber-400"
-                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                }`}
-              >
-                <Star
-                  className={`h-3.5 w-3.5 ${
-                    isFavorite(activeChannel.id) ? "fill-black" : ""
-                  }`}
-                />
-                <span>{isFavorite(activeChannel.id) ? "Favorited" : "Favorite"}</span>
-              </button>
-            </div>
-          </div>
+        <div className="mx-auto w-full max-w-[1600px] sm:px-6 sm:pt-4 lg:px-10">
+          <VideoPlayer key={streamUrl} title={activeChannel.name} sources={playerSources} isLive={true} />
         </div>
       )}
 
-      {/* Live TV Banner Ad Slot */}
-      <AdSlot placement="live-tv-banner" />
+      <div className="shell mx-auto max-w-[1600px] sm:px-6 lg:px-10">
+        {activeChannel ? (
+          <div className="mt-5 flex flex-col gap-4 border-b border-line pb-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-black p-2">
+                {activeChannel.logo ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={activeChannel.logo} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <Tv className="h-6 w-6 text-fg-muted" aria-hidden="true" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="eyebrow flex items-center gap-2 text-accent">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                  Live now
+                </p>
+                <h1 className="truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">{activeChannel.name}</h1>
+                <p className="meta-dot mt-1 flex flex-wrap items-center text-sm text-fg-muted">
+                  {activeChannel.group && <span>{activeChannel.group}</span>}
+                  {activeChannel.country && <span className="uppercase">{activeChannel.country}</span>}
+                  {activeChannel.quality && <span>{activeChannel.quality}</span>}
+                  {useProxy && <span>Proxied</span>}
+                </p>
+              </div>
+            </div>
 
-      {/* Channel Guide & Exploration Section */}
-      <div className="space-y-6">
-        {/* Filter Controls Bar */}
-        <div className="rounded-2xl border border-white/5 bg-[#07090e]/80 p-4 sm:p-5 backdrop-blur-xl space-y-4 shadow-xl">
-          {/* Top row: Search input + Country Pills */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full lg:w-72">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={handlePrevChannel} className="btn btn-secondary btn-sm" aria-label="Previous channel">
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Prev
+              </button>
+              <button type="button" onClick={handleNextChannel} className="btn btn-secondary btn-sm" aria-label="Next channel">
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleFavorite(activeChannel.id)}
+                aria-pressed={isFavorite(activeChannel.id)}
+                className="btn btn-secondary btn-sm"
+              >
+                <Star
+                  className={`h-4 w-4 ${isFavorite(activeChannel.id) ? "fill-rating text-rating" : ""}`}
+                  aria-hidden="true"
+                />
+                {isFavorite(activeChannel.id) ? "Favorited" : "Favorite"}
+              </button>
+              <button type="button" onClick={handleShare} className="btn btn-ghost btn-sm">
+                {copied ? <Check className="h-4 w-4 text-success" aria-hidden="true" /> : <Share2 className="h-4 w-4" aria-hidden="true" />}
+                {copied ? "Link copied" : "Share"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseProxy((prev) => !prev)}
+                aria-pressed={useProxy}
+                className="btn btn-ghost btn-sm"
+                title="Route the stream through our proxy if it won't load directly"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                {useProxy ? "Proxy on" : "Not loading? Use proxy"}
+              </button>
+              <a href={`vlc://${activeChannel.url}`} className="btn btn-ghost btn-sm hidden sm:inline-flex">
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                Open in VLC
+              </a>
+            </div>
+          </div>
+        ) : (
+          <h1 className="page-title mt-10">Live TV</h1>
+        )}
+
+        <AdSlot placement="live-tv-banner" />
+
+        <section className="mt-8" aria-labelledby="channels-heading">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <h2 id="channels-heading" className="section-title">
+              Channels
+            </h2>
+            <div className="relative w-full lg:w-80">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" aria-hidden="true" />
               <input
-                type="text"
-                placeholder="Search live channels..."
+                type="search"
+                placeholder="Search channels"
+                aria-label="Search channels"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-zinc-700/80 bg-zinc-900/90 px-4 py-2 pl-10 pr-9 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="input h-10 pl-10 pr-9 [&::-webkit-search-cancel-button]:hidden"
               />
-              <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-zinc-400" />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-2.5 text-zinc-400 hover:text-white"
-                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-muted hover:text-white"
+                  aria-label="Clear channel search"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </div>
+          </div>
 
-            {/* Quick Country Pills (Horizontally scrollable on mobile) */}
-            <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1">
-              {popularCountryPills.map((cp) => (
-                <button
-                  key={cp.code}
-                  type="button"
-                  onClick={() => setSelectedCountry(cp.code)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                    selectedCountry === cp.code
-                      ? "bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20"
-                      : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                  }`}
-                >
-                  <span>{cp.name}</span>
-                </button>
-              ))}
-
-              {/* All Countries Select Dropdown for less common countries */}
-              <select
-                value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
-                className="flex-shrink-0 rounded-lg border border-zinc-700 bg-zinc-800/80 px-2.5 py-1.5 text-xs font-medium text-zinc-300 focus:border-amber-500 focus:outline-none"
+          <div className="no-scrollbar -mx-[max(1rem,4vw)] mt-4 flex items-center gap-2 overflow-x-auto px-[max(1rem,4vw)] pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Country">
+            {popularCountryPills.map((cp) => (
+              <button
+                key={cp.code}
+                type="button"
+                onClick={() => setSelectedCountry(cp.code)}
+                aria-pressed={selectedCountry === cp.code}
+                className="chip h-9 px-4 text-sm"
               >
-                <option value="all">More Countries...</option>
+                {cp.name}
+              </button>
+            ))}
+            <div className="relative flex-shrink-0">
+              <select
+                value={popularCountryPills.some((p) => p.code === selectedCountry) ? "" : selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value || "all")}
+                aria-label="More countries"
+                className={`chip h-9 cursor-pointer appearance-none bg-transparent pr-8 text-sm ${
+                  popularCountryPills.some((p) => p.code === selectedCountry) ? "" : "chip-active"
+                }`}
+              >
+                <option value="" className="bg-surface text-white">
+                  More countries
+                </option>
                 {countries
-                  .filter(
-                    (c) =>
-                      !popularCountryPills.some((p) => p.code.toLowerCase() === c.code.toLowerCase())
-                  )
+                  .filter((c) => !popularCountryPills.some((p) => p.code.toLowerCase() === c.code.toLowerCase()))
                   .map((c) => (
-                    <option key={c.code} value={c.code}>
+                    <option key={c.code} value={c.code} className="bg-surface text-white">
                       {c.name}
                     </option>
                   ))}
               </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2" aria-hidden="true" />
             </div>
           </div>
 
-          {/* Bottom row: Category Tabs */}
-          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
-            {/* Favorites Tab */}
+          <div className="no-scrollbar -mx-[max(1rem,4vw)] mt-3 flex items-center gap-2 overflow-x-auto px-[max(1rem,4vw)] pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Category">
             <button
               type="button"
               onClick={() => setSelectedCategory("favorites")}
-              className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
-                selectedCategory === "favorites"
-                  ? "bg-amber-500 text-black font-bold"
-                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800"
-              }`}
+              aria-pressed={selectedCategory === "favorites"}
+              className="chip"
             >
-              <Star
-                className={`h-3.5 w-3.5 ${
-                  selectedCategory === "favorites" ? "fill-black" : "text-amber-400"
-                }`}
-              />
-              <span>Favorites ({favorites.length})</span>
+              <Star className="h-3.5 w-3.5" aria-hidden="true" />
+              Favorites ({favorites.length})
             </button>
-
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
-                  selectedCategory === cat.id
-                    ? "bg-amber-500 text-black font-bold"
-                    : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800"
-                }`}
+                aria-pressed={selectedCategory === cat.id}
+                className="chip"
               >
-                {cat.icon && <span>{cat.icon}</span>}
-                <span>{cat.name}</span>
+                {cat.icon && <span aria-hidden="true">{cat.icon}</span>}
+                {cat.name}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Channels Grid Header */}
-        <div className="flex items-center justify-between px-1">
-          <div className="text-xs font-semibold text-zinc-400">
+          <p className="mt-5 text-sm text-fg-subtle" role="status">
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <RefreshCw className="h-3 w-3 animate-spin text-amber-500" />
-                Loading channels...
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading channels…
               </span>
             ) : (
-              <span>Showing {displayedChannels.length} channels</span>
+              `${displayedChannels.length} channels`
             )}
-          </div>
-        </div>
+          </p>
 
-        {/* Channels Grid */}
-        {displayedChannels.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {displayedChannels.map((channel) => (
-              <ChannelCard
-                key={channel.id}
-                channel={channel}
-                isActive={activeChannel?.id === channel.id}
-                isFavorite={isFavorite(channel.id)}
-                onSelect={handleSelectChannel}
-                onToggleFavorite={toggleFavorite}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-12 text-center">
-            <Tv className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">No channels found</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
-              {selectedCategory === "favorites"
-                ? "You haven't bookmarked any favorite channels yet. Click the star icon on any channel card to add it to your favorites."
-                : "No channels match your current search or filter criteria."}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
+          {displayedChannels.length > 0 ? (
+            <div className={`mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 ${isLoading ? "opacity-60" : ""}`}>
+              {displayedChannels.map((channel) => (
+                <ChannelCard
+                  key={channel.id}
+                  channel={channel}
+                  isActive={activeChannel?.id === channel.id}
+                  isFavorite={isFavorite(channel.id)}
+                  onSelect={handleSelectChannel}
+                  onToggleFavorite={toggleFavorite}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Tv}
+              title="No channels found"
+              message={
+                selectedCategory === "favorites"
+                  ? "Tap the star on any channel to add it to your favorites."
+                  : "No channels match this search or filter."
+              }
+              actionText="Reset filters"
+              onAction={() => {
                 setSelectedCountry("all");
                 setSelectedCategory("all");
                 setSearchQuery("");
               }}
-              className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-black hover:bg-amber-400 transition-colors"
-            >
-              Reset Filters
-            </button>
-          </div>
-        )}
+            />
+          )}
+        </section>
       </div>
     </div>
   );

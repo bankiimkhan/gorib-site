@@ -2,7 +2,6 @@ import { StreamResult, StreamingProvider } from "@/types/streaming";
 import { getExternalIds } from "@/lib/api/tmdb/client";
 import { mockStreamingProvider } from "./mockProvider";
 import { customStreamingProvider } from "./customProvider";
-import { resolveDhakaFlixMovie, resolveDhakaFlixEpisode } from "./dhakaFlixProvider";
 import { detectAvailableLanguages } from "./trackDetector";
 
 /**
@@ -17,7 +16,7 @@ export function getActiveStreamingProvider(): StreamingProvider {
 }
 
 /**
- * Resolves movie streaming source from TMDB ID across Server 1 and Server 2 (DhakaFlix BDIX)
+ * Resolves movie streaming sources from a TMDB ID
  */
 export async function resolveMovieStream(params: {
   tmdbId: number;
@@ -40,15 +39,14 @@ export async function resolveMovieStream(params: {
 
   const provider = getActiveStreamingProvider();
 
-  // Resolve Server 1, Server 2 (DhakaFlix BDIX), and dynamic language detection in parallel
-  const [server1Result, server2Source, detectedLanguages] = await Promise.all([
+  // Resolve the provider sources and dynamic language detection in parallel
+  const [server1Result, detectedLanguages] = await Promise.all([
     provider.getMovieStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
       title: params.title,
       year: params.year,
     }),
-    resolveDhakaFlixMovie(params.title, params.year).catch(() => null),
     detectAvailableLanguages({
       type: "movie",
       tmdbId: params.tmdbId,
@@ -56,12 +54,7 @@ export async function resolveMovieStream(params: {
     }).catch(() => null),
   ]);
 
-  const sources = [...server1Result.sources];
-
-  // If DhakaFlix Server 2 found a matching stream, prepend or add it to sources
-  if (server2Source) {
-    sources.push(server2Source);
-  }
+  const sources = server1Result.sources;
 
   // Merge detected subtitles and audio tracks
   const availableSubtitles =
@@ -95,7 +88,7 @@ export async function resolveMovieStream(params: {
 }
 
 /**
- * Resolves TV episode streaming source across Server 1 and Server 2 (DhakaFlix BDIX)
+ * Resolves TV episode streaming sources
  */
 export async function resolveEpisodeStream(params: {
   tmdbId: number;
@@ -119,7 +112,7 @@ export async function resolveEpisodeStream(params: {
 
   const provider = getActiveStreamingProvider();
 
-  const [server1Result, server2Source, detectedLanguages] = await Promise.all([
+  const [server1Result, detectedLanguages] = await Promise.all([
     provider.getEpisodeStream({
       tmdbId: params.tmdbId,
       imdbId: resolvedImdbId,
@@ -127,7 +120,6 @@ export async function resolveEpisodeStream(params: {
       episode: params.episode,
       title: params.title,
     }),
-    resolveDhakaFlixEpisode(params.title, params.season, params.episode).catch(() => null),
     detectAvailableLanguages({
       type: "tv",
       tmdbId: params.tmdbId,
@@ -137,11 +129,7 @@ export async function resolveEpisodeStream(params: {
     }).catch(() => null),
   ]);
 
-  const sources = [...server1Result.sources];
-
-  if (server2Source) {
-    sources.push(server2Source);
-  }
+  const sources = server1Result.sources;
 
   // Merge detected subtitles and audio tracks for this specific episode
   const availableSubtitles =

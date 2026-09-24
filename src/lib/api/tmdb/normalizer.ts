@@ -6,6 +6,7 @@ import {
   Genre,
   CastMember,
   CrewMember,
+  Review,
 } from "@/types/media";
 import {
   TMDBMovie,
@@ -14,6 +15,8 @@ import {
   TMDBTVDetails,
   TMDBSeasonDetails,
   TMDBGenre,
+  TMDBPageResult,
+  TMDBReview,
 } from "@/types/tmdb";
 import { getBackdropUrl, getPosterUrl, getProfileUrl } from "@/lib/utils/images";
 import { formatYear, slugify } from "@/lib/utils/formatters";
@@ -35,8 +38,59 @@ function mapGenreIds(ids?: number[]): Genre[] {
     .filter((g): g is Genre => Boolean(g));
 }
 
+const MAX_RELATED = 18;
+
+type TMDBVideo = { site: string; type: string; key: string; official?: boolean };
+
+/** Prefers an official YouTube trailer, then any trailer, then a teaser. */
+function pickTrailer(videos?: TMDBVideo[]): TMDBVideo | undefined {
+  const yt = (videos || []).filter((v) => v.site === "YouTube");
+  return (
+    yt.find((v) => v.type === "Trailer" && v.official) ||
+    yt.find((v) => v.type === "Trailer") ||
+    yt.find((v) => v.type === "Teaser")
+  );
+}
+const MAX_REVIEWS = 6;
+
+/** Recommendations first (TMDB's collaborative filtering), topped up with "similar". */
+function mapRelated<T>(
+  recommendations: TMDBPageResult<T> | undefined,
+  similar: TMDBPageResult<T> | undefined,
+  normalize: (item: T) => MediaItem,
+  selfId: number
+): MediaItem[] {
+  const seen = new Set<number>([selfId]);
+  const out: MediaItem[] = [];
+  for (const raw of [...(recommendations?.results || []), ...(similar?.results || [])]) {
+    const item = normalize(raw);
+    if (seen.has(item.tmdbId) || !item.posterUrl) continue;
+    seen.add(item.tmdbId);
+    out.push(item);
+    if (out.length >= MAX_RELATED) break;
+  }
+  return out;
+}
+
+function mapReviews(reviews?: TMDBPageResult<TMDBReview>): Review[] {
+  return (reviews?.results || []).slice(0, MAX_REVIEWS).map((r) => {
+    const avatar = r.author_details?.avatar_path;
+    return {
+      id: r.id,
+      author: r.author_details?.name || r.author || r.author_details?.username || "Anonymous",
+      avatarUrl: avatar && !avatar.includes("gravatar") ? getProfileUrl(avatar, "w185") : undefined,
+      rating: r.author_details?.rating ?? undefined,
+      content: r.content,
+      createdAt: r.created_at,
+      url: r.url,
+    };
+  });
+}
+
 /**
- * Normalizes a basic TMDB movie item
+ * Normalizes a basic TMDB movie item.
+ * List posters use w342: cards render at most ~210 CSS px wide, so w500 only
+ * wasted bandwidth (images are served unoptimized on Workers).
  */
 export function normalizeMovie(item: TMDBMovie): MediaItem {
   return {
@@ -46,7 +100,7 @@ export function normalizeMovie(item: TMDBMovie): MediaItem {
     title: item.title || "Untitled",
     originalTitle: item.original_title,
     overview: item.overview || "No overview available.",
-    posterUrl: getPosterUrl(item.poster_path, "w500"),
+    posterUrl: getPosterUrl(item.poster_path, "w342"),
     backdropUrl: getBackdropUrl(item.backdrop_path, "w1280"),
     releaseDate: item.release_date,
     year: formatYear(item.release_date),
@@ -55,6 +109,7 @@ export function normalizeMovie(item: TMDBMovie): MediaItem {
     popularity: item.popularity || 0,
     genres: mapGenreIds(item.genre_ids),
     originalLanguage: item.original_language,
+    countries: item.origin_country,
   };
 }
 
@@ -69,7 +124,7 @@ export function normalizeTVShow(item: TMDBTVShow): TVShow {
     title: item.name || "Untitled",
     originalTitle: item.original_name,
     overview: item.overview || "No overview available.",
-    posterUrl: getPosterUrl(item.poster_path, "w500"),
+    posterUrl: getPosterUrl(item.poster_path, "w342"),
     backdropUrl: getBackdropUrl(item.backdrop_path, "w1280"),
     releaseDate: item.first_air_date,
     year: formatYear(item.first_air_date),
@@ -78,6 +133,7 @@ export function normalizeTVShow(item: TMDBTVShow): TVShow {
     popularity: item.popularity || 0,
     genres: mapGenreIds(item.genre_ids),
     originalLanguage: item.original_language,
+    countries: item.origin_country,
   };
 }
 
@@ -110,13 +166,12 @@ export function normalizeMovieDetails(item: TMDBMovieDetails): MediaItem {
     })) || [];
 
   // Extract trailer (YouTube)
-  const trailer = item.videos?.results?.find(
-    (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")
-  );
+  const trailer = pickTrailer(item.videos?.results);
   const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : undefined;
 
   return {
     ...base,
+    posterUrl: getPosterUrl(item.poster_path, "w500"),
     imdbId: item.imdb_id || item.external_ids?.imdb_id || undefined,
     genres: mapGenreObjects(item.genres).length > 0 ? mapGenreObjects(item.genres) : base.genres,
     runtime: item.runtime || undefined,
@@ -127,6 +182,9 @@ export function normalizeMovieDetails(item: TMDBMovieDetails): MediaItem {
     crew,
     trailerUrl,
     spokenLanguages: item.spoken_languages?.map((l) => l.iso_639_1),
+    countries: item.production_countries?.map((c) => c.iso_3166_1) || base.countries,
+    recommendations: mapRelated(item.recommendations, item.similar, normalizeMovie, item.id),
+    reviews: mapReviews(item.reviews),
   };
 }
 
@@ -151,18 +209,17 @@ export function normalizeTVDetails(item: TMDBTVDetails): TVShow {
       seasonNumber: s.season_number,
       name: s.name,
       overview: s.overview,
-      posterUrl: getPosterUrl(s.poster_path, "w500"),
+      posterUrl: getPosterUrl(s.poster_path, "w342"),
       episodeCount: s.episode_count,
       airDate: s.air_date || undefined,
     })) || [];
 
-  const trailer = item.videos?.results?.find(
-    (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")
-  );
+  const trailer = pickTrailer(item.videos?.results);
   const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : undefined;
 
   return {
     ...base,
+    posterUrl: getPosterUrl(item.poster_path, "w500"),
     imdbId: item.external_ids?.imdb_id || undefined,
     genres: mapGenreObjects(item.genres).length > 0 ? mapGenreObjects(item.genres) : base.genres,
     totalSeasons: item.number_of_seasons,
@@ -174,6 +231,8 @@ export function normalizeTVDetails(item: TMDBTVDetails): TVShow {
     cast,
     trailerUrl,
     spokenLanguages: item.spoken_languages?.map((l) => l.iso_639_1),
+    recommendations: mapRelated(item.recommendations, item.similar, normalizeTVShow, item.id),
+    reviews: mapReviews(item.reviews),
   };
 }
 

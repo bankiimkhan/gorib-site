@@ -5,15 +5,14 @@ import { AdPlacement } from "../types";
 import { getAdConfig, PLACEMENT_DIMENSIONS } from "../adConfig";
 import { loadAdScript } from "../scriptLoader";
 import { trackAdEvent } from "../adAnalytics";
-import { PlaceholderProvider } from "./PlaceholderProvider";
 
 interface AdSenseProviderProps {
   placement: AdPlacement;
   className?: string;
+  onUnfilled?: () => void;
 }
 
-export function AdSenseProvider({ placement, className = "" }: AdSenseProviderProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
+export function AdSenseProvider({ placement, className = "", onUnfilled }: AdSenseProviderProps) {
   const [hasError, setHasError] = useState(false);
   const adRef = useRef<HTMLModElement>(null);
   const config = getAdConfig();
@@ -22,18 +21,16 @@ export function AdSenseProvider({ placement, className = "" }: AdSenseProviderPr
   const dimensions = PLACEMENT_DIMENSIONS[placement] || PLACEMENT_DIMENSIONS["home-top"];
 
   useEffect(() => {
-    if (!clientId) {
-      // If no AdSense client ID configured, fall back gracefully to placeholder
-      setHasError(true);
-      return;
-    }
+    // Without a client ID the slot renders nothing (handled below).
+    if (!clientId) return;
 
     let isMounted = true;
     const scriptUrl = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(
       clientId
     )}`;
 
-    loadAdScript(scriptUrl, { crossOrigin: "anonymous" })
+    // AdSense display units never overlay or intercept other page content.
+    loadAdScript(scriptUrl, { crossOrigin: "anonymous" }, { playerSafe: true })
       .then((success) => {
         if (!isMounted) return;
         if (!success) {
@@ -47,7 +44,6 @@ export function AdSenseProvider({ placement, className = "" }: AdSenseProviderPr
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const win = window as any;
           (win.adsbygoogle = win.adsbygoogle || []).push({});
-          setIsLoaded(true);
           trackAdEvent("impression", placement, "adsense");
         } catch (err) {
           trackAdEvent("error", placement, "adsense", { error: String(err) });
@@ -66,16 +62,34 @@ export function AdSenseProvider({ placement, className = "" }: AdSenseProviderPr
     };
   }, [clientId, slotId, placement]);
 
+  // Collapse when AdSense reports no fill for this unit.
+  useEffect(() => {
+    const ins = adRef.current;
+    if (!ins || typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => {
+      if (ins.getAttribute("data-ad-status") === "unfilled") {
+        setHasError(true);
+      }
+    });
+    observer.observe(ins, { attributes: true, attributeFilter: ["data-ad-status"] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (hasError || !clientId) onUnfilled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasError, clientId]);
+
   if (hasError || !clientId) {
-    return <PlaceholderProvider placement={placement} mode="sponsor" className={className} />;
+    return null;
   }
 
   return (
     <div
-      className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/40 p-2 text-center ${dimensions.minHeightClass} ${className}`}
+      className={`relative flex w-full items-center justify-center overflow-hidden rounded-md bg-white/[0.02] text-center ${dimensions.minHeightClass} ${className}`}
     >
-      <div className="absolute top-1 right-2 text-[9px] text-zinc-600 uppercase font-mono tracking-widest pointer-events-none">
-        Advertisement
+      <div className="pointer-events-none absolute top-1 right-2 text-[9px] font-medium uppercase tracking-widest text-fg-subtle">
+        Ad
       </div>
 
       <ins

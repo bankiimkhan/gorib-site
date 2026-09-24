@@ -1,26 +1,45 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Film, Tv, Layers, X, Sparkles } from "lucide-react";
+import { Search, X, Loader2, Clock, SearchX, WifiOff } from "lucide-react";
 import { MediaItem } from "@/types/media";
 import { MediaCard } from "@/components/common/MediaCard";
-import { SearchSkeleton } from "@/components/common/Skeleton";
+import { PosterGridSkeleton } from "@/components/common/Skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { NativeAdCard } from "@/components/ads/NativeAdCard";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import {
+  clearRecentSearches,
+  getRecentSearchesServerSnapshot,
+  getRecentSearchesSnapshot,
+  saveRecentSearch,
+  subscribeRecentSearches,
+} from "@/lib/utils/recentSearches";
 
-const SUGGESTED_SEARCHES = [
-  "Bangla Cinema",
-  "Action Blockbusters",
-  "Bollywood Hits",
-  "Sci-Fi Thrillers",
-  "Crime & Mystery",
-  "Comedy Series",
-  "South Indian Cinema",
-  "Animation",
+const BROWSE_LINKS = [
+  { label: "Action", href: "/genre/action" },
+  { label: "Comedy", href: "/genre/comedy" },
+  { label: "Drama", href: "/genre/drama" },
+  { label: "Thriller", href: "/genre/thriller" },
+  { label: "Sci-Fi", href: "/genre/sci-fi" },
+  { label: "Animation", href: "/genre/animation" },
+  { label: "Horror", href: "/genre/horror" },
+  { label: "Romance", href: "/genre/romance" },
+  { label: "Bangla Cinema", href: "/movies?language=bn" },
+  { label: "Bollywood", href: "/movies?language=hi" },
+  { label: "South Indian", href: "/movies?language=south" },
+  { label: "K-Drama", href: "/tv?language=ko&genre=18" },
+  { label: "Anime", href: "/tv?language=ja&genre=16" },
 ];
+
+const TYPE_TABS = [
+  { id: "multi", label: "All" },
+  { id: "movie", label: "Movies" },
+  { id: "tv", label: "TV Shows" },
+] as const;
 
 export function SearchClient() {
   const router = useRouter();
@@ -35,11 +54,25 @@ export function SearchClient() {
     query: string;
     type: string;
     results: MediaItem[];
+    page: number;
+    totalPages: number;
+    totalResults: number;
+    failed?: boolean;
   }>({
     query: "",
     type: "multi",
     results: [],
+    page: 1,
+    totalPages: 0,
+    totalResults: 0,
   });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const recent = useSyncExternalStore(
+    subscribeRecentSearches,
+    getRecentSearchesSnapshot,
+    getRecentSearchesServerSnapshot
+  );
+  const [retryKey, setRetryKey] = useState(0);
 
   // Sync state if URL query changes externally (render-time adjustment)
   const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
@@ -89,17 +122,23 @@ export function SearchClient() {
             query: trimmedQuery,
             type: filterType,
             results: data.items || [],
+            page: data.page || 1,
+            totalPages: data.totalPages || 0,
+            totalResults: data.totalResults || 0,
           });
         }
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
-        console.error("Search error:", err);
         if (isMounted) {
           setSearchState({
             query: trimmedQuery,
             type: filterType,
             results: [],
+            page: 1,
+            totalPages: 0,
+            totalResults: 0,
+            failed: true,
           });
         }
       });
@@ -108,133 +147,182 @@ export function SearchClient() {
       isMounted = false;
       controller.abort();
     };
-  }, [trimmedQuery, filterType]);
+  }, [trimmedQuery, filterType, retryKey]);
+
+  const canLoadMore = !isLoading && searchState.page < searchState.totalPages;
+
+  const loadMore = async () => {
+    if (loadingMore || !canLoadMore) return;
+    setLoadingMore(true);
+    const nextPage = searchState.page + 1;
+    try {
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(searchState.query)}&type=${searchState.type}&page=${nextPage}`
+      );
+      if (!res.ok) throw new Error("Search request failed");
+      const data = await res.json();
+      setSearchState((prev) => {
+        // Ignore if the query changed while this page was loading.
+        if (prev.query !== searchState.query || prev.type !== searchState.type) return prev;
+        const seen = new Set(prev.results.map((r) => r.id));
+        return {
+          ...prev,
+          results: [...prev.results, ...((data.items || []) as MediaItem[]).filter((r) => !seen.has(r.id))],
+          page: data.page || nextPage,
+          totalPages: data.totalPages || prev.totalPages,
+        };
+      });
+    } catch {
+      // Keep existing results; the button stays available to retry.
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-16">
-      {/* Search Input Bar */}
-      <div className="relative mx-auto max-w-3xl">
-        <div className="relative flex items-center">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-amber-500" />
+    <div className="shell pb-16 pt-24 sm:pt-28">
+      <h1 className="sr-only">Search</h1>
+
+      <form
+        role="search"
+        className="mx-auto max-w-3xl"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (inputVal.trim()) saveRecentSearch(inputVal.trim());
+        }}
+      >
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-fg-muted" aria-hidden="true" />
           <input
-            type="text"
-            placeholder="Search by title, genre, actor, or keyword..."
+            type="search"
+            placeholder="Search titles, people, genres"
+            aria-label="Search movies and TV shows"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             autoFocus
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 py-4 pl-12 pr-12 text-base text-white placeholder-zinc-500 shadow-2xl focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all backdrop-blur-xl"
+            className="input h-14 pl-12 pr-12 text-base sm:text-lg [&::-webkit-search-cancel-button]:hidden"
           />
           {inputVal && (
             <button
               type="button"
               onClick={() => setInputVal("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-500 hover:text-white transition-colors"
-              aria-label="Clear search input"
+              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-fg-muted transition-colors hover:text-white"
+              aria-label="Clear search"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        {/* Media Type Filter Tabs */}
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFilterType("multi")}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              filterType === "multi"
-                ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                : "bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-800"
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            All Results
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType("movie")}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              filterType === "movie"
-                ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                : "bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-800"
-            }`}
-          >
-            <Film className="h-3.5 w-3.5" />
-            Movies
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType("tv")}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              filterType === "tv"
-                ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                : "bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-800"
-            }`}
-          >
-            <Tv className="h-3.5 w-3.5" />
-            TV Shows
-          </button>
+        <div className="mt-4 flex items-center justify-center gap-2" role="group" aria-label="Result type">
+          {TYPE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilterType(tab.id)}
+              aria-pressed={filterType === tab.id}
+              className="chip h-9 px-4 text-sm"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
+      </form>
 
-      {/* Search Banner Ad Slot */}
       <AdSlot placement="search-banner" />
 
-      {/* Results View */}
-      <div className="mt-6">
+      <div className="mt-6" aria-live="polite" aria-busy={isLoading}>
         {isLoading ? (
-          <SearchSkeleton />
+          <PosterGridSkeleton count={16} />
+        ) : hasSearched && searchState.failed ? (
+          <EmptyState
+            icon={WifiOff}
+            title="Search is temporarily unavailable"
+            message="We couldn't reach the catalog. Check your connection and try again."
+            actionText="Retry"
+            onAction={() => {
+              setSearchState((prev) => ({ ...prev, query: "", failed: false }));
+              setRetryKey((k) => k + 1);
+            }}
+          />
         ) : hasSearched && results.length === 0 ? (
           <EmptyState
-            title={`No results found for "${debouncedQuery}"`}
-            message="Check the spelling or try searching for another movie, TV series, or actor."
-            actionText="Clear Search"
-            onRetry={() => setInputVal("")}
+            icon={SearchX}
+            title={`No results for “${trimmedQuery}”`}
+            message="Check the spelling, or try a different title, actor or genre."
+            actionText="Clear search"
+            onAction={() => setInputVal("")}
           />
         ) : hasSearched && results.length > 0 ? (
           <div>
-            <div className="mb-4 text-xs font-medium text-zinc-400">
-              Found <span className="font-bold text-white">{results.length}</span> titles for &quot;{debouncedQuery}&quot;
-            </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <p className="mb-5 text-sm text-fg-muted">
+              <span className="font-semibold text-white">{searchState.totalResults.toLocaleString("en-US")}</span>{" "}
+              results for “{trimmedQuery}”
+            </p>
+            {/* Remember the query once the viewer opens one of its results. */}
+            <div
+              className="poster-grid"
+              onClickCapture={(e) => {
+                if ((e.target as HTMLElement).closest("a")) saveRecentSearch(trimmedQuery);
+              }}
+            >
               {results.map((item, index) => (
                 <React.Fragment key={item.id}>
-                  {index === 6 && <NativeAdCard key="search-sponsor" />}
-                  <MediaCard item={item} />
+                  {index === 12 && <NativeAdCard key="search-sponsor" />}
+                  <MediaCard item={item} priority={index < 6} />
                 </React.Fragment>
               ))}
             </div>
+            {canLoadMore && (
+              <div className="mt-12 flex justify-center">
+                <button type="button" onClick={loadMore} disabled={loadingMore} className="btn btn-secondary">
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  {loadingMore ? "Loading…" : "Show more results"}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          /* Empty Initial State: Suggestions & Discovery */
-          <div className="mx-auto max-w-xl py-12 text-center space-y-6">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 mx-auto border border-amber-500/20">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Explore the Library</h2>
-              <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-sm mx-auto">
-                Search through thousands of movies, TV series, regional cinema, and global broadcasts.
-              </p>
-            </div>
-
-            <div>
-              <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-3">
-                Suggested Searches
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {SUGGESTED_SEARCHES.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setInputVal(tag)}
-                    className="rounded-full bg-zinc-900/90 border border-zinc-800 px-3.5 py-1.5 text-xs font-medium text-zinc-300 hover:border-amber-500/50 hover:text-amber-400 hover:bg-zinc-800 transition-colors"
-                  >
-                    {tag}
+          <div className="mx-auto max-w-3xl space-y-10 py-6">
+            {recent.length > 0 && (
+              <section aria-labelledby="recent-heading">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 id="recent-heading" className="section-title text-base sm:text-lg">
+                    Recent searches
+                  </h2>
+                  <button type="button" onClick={clearRecentSearches} className="btn btn-ghost btn-sm">
+                    Clear
                   </button>
+                </div>
+                <ul className="divide-y divide-line">
+                  {recent.map((q) => (
+                    <li key={q}>
+                      <button
+                        type="button"
+                        onClick={() => setInputVal(q)}
+                        className="flex w-full items-center gap-3 rounded px-1 py-3 text-left text-sm text-fg-muted transition-colors hover:text-white"
+                      >
+                        <Clock className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                        {q}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section aria-labelledby="browse-heading">
+              <h2 id="browse-heading" className="section-title mb-4 text-base sm:text-lg">
+                Browse by category
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {BROWSE_LINKS.map((link) => (
+                  <Link key={link.href} href={link.href} className="chip h-9 px-4 text-sm">
+                    {link.label}
+                  </Link>
                 ))}
               </div>
-            </div>
+            </section>
           </div>
         )}
       </div>

@@ -40,9 +40,11 @@ export default async function TVDetailsPage({ params }: TVPageProps) {
     notFound();
   }
 
-  // Fetch season 1
-  const season1 = await getTVSeason(tmdbId, 1);
+  // Start at the first real season (some shows have no "Season 1", only specials or later seasons).
+  const firstSeason =
+    tvShow.seasons?.find((s) => s.seasonNumber > 0 && s.episodeCount > 0)?.seasonNumber ?? 1;
+  const initialSeason = await getTVSeason(tmdbId, firstSeason);
 
-  return <TVDetailsClient tvShow={tvShow} initialSeason={season1} />;
+  return <TVDetailsClient tvShow={tvShow} initialSeason={initialSeason} />;
 }
 

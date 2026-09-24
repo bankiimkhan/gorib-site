@@ -1,137 +1,100 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Play, Bookmark, Film } from "lucide-react";
+import { Play, Star, Film } from "lucide-react";
 import { MediaItem } from "@/types/media";
 import { formatRating } from "@/lib/utils/formatters";
-import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { getLanguageDisplayName } from "@/lib/utils/languages";
+import { mediaHref, watchHref } from "@/lib/utils/routes";
+import { WatchlistButton } from "./WatchlistButton";
 
 interface MediaCardProps {
   item: MediaItem;
   priority?: boolean;
+  /** Responsive `sizes` hint; defaults to a rail/grid poster width. */
+  sizes?: string;
 }
 
-export function MediaCard({ item, priority = false }: MediaCardProps) {
-  const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const { isInWatchlist, toggleWatchlist } = useWatchlist();
-  const isBookmarked = isInWatchlist(item.id);
+/** Non-English originals get a small corner tag (e.g. "Bengali", "Korean"). */
+function languageTag(item: MediaItem): string | undefined {
+  const lang = item.originalLanguage;
+  if (!lang || lang === "en" || lang === "xx") return undefined;
+  const name = getLanguageDisplayName(lang, "");
+  return name && name.length <= 12 ? name : undefined;
+}
 
-  const detailUrl = item.type === "tv" ? `/tv/${item.tmdbId}` : `/movie/${item.tmdbId}`;
-  const watchUrl = item.type === "tv" ? `/watch/tv/${item.tmdbId}` : `/watch/movie/${item.tmdbId}`;
+/**
+ * Poster card. Touch devices get a clean tap-to-open poster; mouse users get
+ * a subtle lift with Play and My List actions revealed on hover.
+ */
+export const MediaCard = memo(function MediaCard({
+  item,
+  priority = false,
+  sizes = "(max-width: 640px) 31vw, (max-width: 1024px) 20vw, (max-width: 1536px) 15vw, 12vw",
+}: MediaCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const tag = languageTag(item);
+  const hasRating = item.rating !== undefined && item.rating > 0;
 
   return (
-    <div className="group relative flex flex-col transition-all duration-300">
-      {/* Poster Container */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md ring-1 ring-white/10 transition-all duration-300 group-hover:scale-[1.025] group-hover:shadow-2xl group-hover:shadow-amber-500/10 group-hover:ring-amber-500/40">
-        <Link href={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${item.title}`}>
+    <article className="group/card relative">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md bg-surface shadow-black/60 transition-[transform,box-shadow] duration-300 ease-out-soft pointer-fine:group-hover/card:scale-[1.04] pointer-fine:group-hover/card:shadow-card motion-reduce:transform-none">
+        <Link href={mediaHref(item)} className="absolute inset-0 z-10 rounded-md" aria-label={item.title}>
           {item.posterUrl && !imageError ? (
             <Image
               src={item.posterUrl}
-              alt={item.title}
+              alt=""
               fill
-              sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 16vw"
+              sizes={sizes}
               priority={priority}
-              onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
-              className={`object-cover transition-all duration-500 group-hover:scale-105 ${
-                imageLoaded || priority ? "opacity-100" : "opacity-0"
-              }`}
+              className="object-cover"
             />
           ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 p-4 text-center">
-              <Film className="h-8 w-8 text-zinc-600 mb-2" />
-              <span className="text-xs font-semibold text-zinc-400 line-clamp-3">{item.title}</span>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface-2 to-surface p-3 text-center">
+              <Film className="h-7 w-7 text-fg-subtle" aria-hidden="true" />
+              <span className="line-clamp-3 text-xs font-semibold text-fg-muted">{item.title}</span>
             </div>
           )}
         </Link>
 
-        {/* Rating Badge */}
-        {item.rating !== undefined && item.rating > 0 && (
-          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 backdrop-blur-md border border-white/5">
-            <Star className="h-3 w-3 fill-amber-400" />
-            <span>{formatRating(item.rating)}</span>
-          </div>
+        {tag && (
+          <span className="pointer-events-none absolute left-0 top-0 z-20 rounded-br-md bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            {tag}
+          </span>
         )}
 
-        {/* Media Type & Mobile Watchlist Header */}
-        <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
-          {/* Mobile direct bookmark tap target */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggleWatchlist(item);
-            }}
-            className={`flex sm:hidden h-6 w-6 items-center justify-center rounded-md backdrop-blur-md transition-colors ${
-              isBookmarked
-                ? "bg-amber-500 text-black"
-                : "bg-black/60 text-zinc-300 hover:text-white"
-            }`}
-            title={isBookmarked ? "Remove from My List" : "Add to My List"}
-            aria-label={isBookmarked ? "Remove from My List" : "Add to My List"}
+        {/* Hover actions (mouse only) */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden translate-y-2 items-center gap-2 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-2.5 pt-10 opacity-0 transition-[opacity,transform] duration-200 pointer-fine:flex pointer-fine:group-hover/card:translate-y-0 pointer-fine:group-hover/card:opacity-100 pointer-fine:group-focus-within/card:translate-y-0 pointer-fine:group-focus-within/card:opacity-100">
+          <Link
+            href={watchHref(item)}
+            className="pointer-events-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-110"
+            aria-label={`Play ${item.title}`}
           >
-            <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? "fill-black" : ""}`} />
-          </button>
-
-          <span className="rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-300 backdrop-blur-md border border-white/5">
-            {item.type}
-          </span>
-        </div>
-
-        {/* Hover Quick Actions Overlay (Desktop) */}
-        <div className="pointer-events-none absolute inset-0 z-20 hidden sm:flex flex-col justify-end bg-gradient-to-t from-black/95 via-black/40 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto">
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              href={watchUrl}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-500 py-2 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-md active:scale-95"
-              aria-label={`Play ${item.title}`}
-            >
-              <Play className="h-3.5 w-3.5 fill-black" />
-              <span>Watch</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleWatchlist(item);
-              }}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all active:scale-90 ${
-                isBookmarked
-                  ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                  : "border-zinc-700 bg-black/60 text-white hover:bg-zinc-800"
-              }`}
-              title={isBookmarked ? "Remove from My List" : "Add to My List"}
-              aria-label={isBookmarked ? "Remove from My List" : "Add to My List"}
-            >
-              <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-amber-400" : ""}`} />
-            </button>
-          </div>
+            <Play className="ml-0.5 h-4 w-4 fill-black" aria-hidden="true" />
+          </Link>
+          <WatchlistButton item={item} className="pointer-events-auto h-9 w-9 [&_svg]:h-4 [&_svg]:w-4" />
         </div>
       </div>
 
-      {/* Info Title & Year */}
-      <div className="mt-2 space-y-0.5 px-0.5">
-        <Link href={detailUrl} className="focus:outline-none">
-          <h3 className="text-xs sm:text-sm font-semibold text-zinc-100 line-clamp-1 group-hover:text-amber-400 transition-colors">
-            {item.title}
-          </h3>
-        </Link>
-        <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-          <span>{item.year || "N/A"}</span>
-          {item.genres && item.genres.length > 0 && (
-            <>
-              <span className="text-zinc-600">•</span>
-              <span className="line-clamp-1">{item.genres[0].name}</span>
-            </>
+      <Link href={mediaHref(item)} tabIndex={-1} className="mt-2 block px-0.5">
+        <h3 className="line-clamp-1 text-[13px] font-medium text-fg transition-colors pointer-fine:group-hover/card:text-white sm:text-sm">
+          {item.title}
+        </h3>
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-subtle">
+          {item.year && <span>{item.year}</span>}
+          {item.type === "tv" && <span className="font-semibold text-fg-muted">Series</span>}
+          {hasRating && (
+            <span className="ml-auto flex flex-shrink-0 items-center gap-0.5 font-semibold text-rating">
+              <Star className="h-3 w-3 fill-rating" aria-hidden="true" />
+              <span className="sr-only">Rated</span>
+              {formatRating(item.rating)}
+            </span>
           )}
-        </div>
-      </div>
-    </div>
+        </p>
+      </Link>
+    </article>
   );
-}
+});

@@ -61,6 +61,22 @@ function notifyChange() {
 
 const emptySubscribe = () => () => {};
 
+// Items are stored newest-first; keep only the latest episode per show.
+let dedupeInput: ContinueWatchingItem[] | null = null;
+let dedupeOutput: ContinueWatchingItem[] = [];
+function dedupeByTitle(items: ContinueWatchingItem[]): ContinueWatchingItem[] {
+  if (items === dedupeInput) return dedupeOutput;
+  const seen = new Set<string>();
+  dedupeOutput = items.filter((i) => {
+    const key = `${i.type}-${i.tmdbId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  dedupeInput = items;
+  return dedupeOutput;
+}
+
 export function useContinueWatching() {
   const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const isLoaded = useSyncExternalStore(emptySubscribe, () => true, () => false);
@@ -141,6 +157,48 @@ export function useContinueWatching() {
     [removeProgress]
   );
 
+  /**
+   * Records that playback started without a known position (embedded players
+   * don't expose their progress). Existing progress is never overwritten.
+   */
+  const markStarted = useCallback(
+    (data: {
+      tmdbId: number;
+      type: MediaType;
+      title: string;
+      posterUrl?: string;
+      backdropUrl?: string;
+      season?: number;
+      episode?: number;
+    }) => {
+      const itemId =
+        data.type === "tv"
+          ? `tv-${data.tmdbId}-s${data.season || 1}-e${data.episode || 1}`
+          : `movie-${data.tmdbId}`;
+      try {
+        const current = getSnapshot();
+        const existing = current.find((i) => i.id === itemId);
+        const item: ContinueWatchingItem = existing
+          ? { ...existing, updatedAt: Date.now() }
+          : { ...data, id: itemId, currentTime: 0, duration: 0, progressPercent: 0, updatedAt: Date.now() };
+        const updated = [item, ...current.filter((i) => i.id !== itemId)].slice(0, 20);
+        localStorage.setItem(CONTINUE_WATCHING_KEY, JSON.stringify(updated));
+        cachedRaw = null;
+        notifyChange();
+      } catch (err) {
+        console.error("Failed to persist continue watching item", err);
+      }
+    },
+    []
+  );
+
+  /** Most recently watched episode of a show, for "Continue S2:E3" buttons. */
+  const getLatestEpisode = useCallback(
+    (tmdbId: number): ContinueWatchingItem | undefined =>
+      items.find((i) => i.type === "tv" && i.tmdbId === tmdbId),
+    [items]
+  );
+
   const getSavedPosition = useCallback(
     (tmdbId: number, season?: number, episode?: number): number => {
       const itemId =
@@ -154,10 +212,12 @@ export function useContinueWatching() {
   );
 
   return {
-    continueWatchingList: items,
+    continueWatchingList: dedupeByTitle(items),
     isLoaded,
     saveProgress,
+    markStarted,
     removeProgress,
     getSavedPosition,
+    getLatestEpisode,
   };
 }

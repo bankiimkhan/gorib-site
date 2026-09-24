@@ -10,18 +10,15 @@ describe("Footer Component", () => {
     expect(footerElement).not.toBeNull();
     expect(footerElement?.className).toContain("w-full");
 
+    // Inner content uses the shared page gutter
     const innerContainer = footerElement?.querySelector("div");
-    expect(innerContainer?.className).toContain("w-full");
-    // Verifies responsive horizontal padding across mobile to ultrawide
-    expect(innerContainer?.className).toContain("px-4");
-    expect(innerContainer?.className).toContain("sm:px-6");
+    expect(innerContainer?.className).toContain("shell");
   });
 
   it("renders brand name and description", () => {
     render(<Footer />);
-    expect(screen.getByText("GORIB")).toBeDefined();
-    expect(screen.getByText(".LOL")).toBeDefined();
-    expect(screen.getByText(/cinematic entertainment platform/i)).toBeDefined();
+    expect(screen.getByRole("link", { name: /gorib\.lol home/i })).toHaveAttribute("href", "/");
+    expect(screen.getByText(/distraction-free player/i)).toBeDefined();
   });
 
   it("renders explore navigation links", () => {
@@ -36,15 +33,15 @@ describe("Footer Component", () => {
   it("renders regional cinema links", () => {
     render(<Footer />);
     expect(screen.getByRole("link", { name: /bangla/i })).toHaveAttribute("href", "/movies?language=bn");
-    expect(screen.getByRole("link", { name: /hindi/i })).toHaveAttribute("href", "/movies?language=hi");
+    expect(screen.getByRole("link", { name: /bollywood/i })).toHaveAttribute("href", "/movies?language=hi");
     expect(screen.getByRole("link", { name: /south indian/i })).toHaveAttribute("href", "/movies?language=south");
   });
 
   it("renders disclaimer and TMDB attribution notices", () => {
     render(<Footer />);
-    expect(screen.getByText(/TMDB API/i)).toBeDefined();
+    expect(screen.getByText(/provided by TMDB/i)).toBeDefined();
     expect(screen.getByText(/iptv-org/i)).toBeDefined();
-    expect(screen.getByText(/does not store any files/i)).toBeDefined();
+    expect(screen.getByText(/No video files are stored/i)).toBeDefined();
   });
 
   it("renders copyright with current year", () => {
@@ -58,7 +55,7 @@ describe("Footer Component", () => {
     window.scrollTo = scrollToMock;
 
     render(<Footer />);
-    const backToTopBtn = screen.getByRole("button", { name: /scroll back to top/i });
+    const backToTopBtn = screen.getByRole("button", { name: /back to top/i });
     fireEvent.click(backToTopBtn);
 
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });

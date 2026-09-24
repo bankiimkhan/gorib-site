@@ -13,6 +13,12 @@ export interface AdSystemConfig {
   customScript?: {
     scriptUrl?: string;
     containerHtml?: string;
+    /**
+     * Whether the custom script is a pure display/banner tag that is safe to run
+     * on pages hosting the video player. Multitags that bundle popunders or
+     * iframe click-capture overlays must leave this false (the default).
+     */
+    playerSafe?: boolean;
   };
 }
 
@@ -72,6 +78,7 @@ export function getAdConfig(): AdSystemConfig {
     },
     customScript: {
       scriptUrl: process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL,
+      playerSafe: process.env.NEXT_PUBLIC_CUSTOM_AD_PLAYER_SAFE === "true",
     },
   };
 }
@@ -83,6 +90,48 @@ export function isPlacementActive(placement: AdPlacement): boolean {
   const config = getAdConfig();
   if (!config.enabled) return false;
   return Boolean(config.placements[placement]);
+}
+
+/**
+ * Placements that render on pages hosting a video player. They sit below or
+ * beside the player, never inside or over it, and only render providers that
+ * are player-safe (see `isProviderPlayerSafe`).
+ */
+export const PLAYER_PAGE_PLACEMENTS: AdPlacement[] = ["player-bottom", "live-tv-banner"];
+
+/**
+ * Whether the configured provider can load on a page hosting the video player
+ * without being able to overlay, intercept, or redirect player interaction.
+ * - placeholder: static markup, no third-party code.
+ * - adsense: display units only (keep Auto ads / anchors off for /watch in the AdSense dashboard).
+ * - custom: only when explicitly declared a banner-only tag.
+ */
+export function isProviderPlayerSafe(config: AdSystemConfig = getAdConfig()): boolean {
+  switch (config.provider) {
+    case "custom":
+      return Boolean(config.customScript?.playerSafe);
+    case "adsense":
+    case "placeholder":
+    default:
+      return true;
+  }
+}
+
+/**
+ * CSS selector listing the in-page containers a custom multitag may fill.
+ * Player-page placements are never included.
+ */
+export function getCustomAppendToSelector(config: AdSystemConfig = getAdConfig()): string {
+  return (Object.keys(config.placements) as AdPlacement[])
+    .filter(
+      (p) =>
+        config.placements[p] &&
+        !PLAYER_PAGE_PLACEMENTS.includes(p) &&
+        p !== "details" &&
+        p !== "search"
+    )
+    .map((p) => `[data-custom-placement="${p}"]`)
+    .join(", ");
 }
 
 /**

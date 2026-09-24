@@ -1,34 +1,51 @@
-import type { Metadata } from "next";
-import Script from "next/script";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
 import { StickyBottomAd } from "@/components/ads/StickyBottomAd";
+import { AdRuntime } from "@/components/ads/AdRuntime";
 
-// Netflix sets type in the proprietary "Netflix Sans"; Inter is the closest
-// open substitute and sits in front of Netflix's own Helvetica fallback chain.
-const netflixSans = Inter({
-  variable: "--font-netflix-sans",
+const uiFont = Inter({
+  variable: "--font-ui",
   subsets: ["latin"],
   display: "swap",
 });
 
-export const viewport = {
+const siteName = process.env.NEXT_PUBLIC_SITE_NAME || "gorib.lol";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gorib.lol";
+const description =
+  "Stream the latest movies and popular TV series in HD, with personalised discovery, subtitles, and a distraction-free player.";
+
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  themeColor: "#0c0c0e",
+  colorScheme: "dark",
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "gorib.lol — Premium Movies & TV Streaming",
-    template: "%s | gorib.lol",
+    default: `${siteName} — Movies & TV Streaming`,
+    template: `%s | ${siteName}`,
   },
-  description:
-    "Stream the latest blockbuster movies and popular television series in HD quality with personalized discovery and custom playback.",
-  keywords: ["streaming", "movies", "tv shows", "cinema", "watch online", "hd streaming"],
-  authors: [{ name: "gorib.lol" }],
+  description,
+  keywords: ["streaming", "movies", "tv shows", "watch online", "hd streaming"],
+  authors: [{ name: siteName }],
+  openGraph: {
+    type: "website",
+    siteName,
+    title: `${siteName} — Movies & TV Streaming`,
+    description,
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${siteName} — Movies & TV Streaming`,
+    description,
+  },
 };
 
 export default function RootLayout({
@@ -37,35 +54,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className={`${netflixSans.variable} h-full antialiased dark`}
-    >
-      <body className="min-h-full flex flex-col bg-[#07090e] text-zinc-100 selection:bg-amber-500 selection:text-black">
+    <html lang="en" className={`${uiFont.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col bg-canvas text-fg">
+        <a
+          href="#main"
+          className="btn btn-primary btn-sm fixed left-4 top-3 z-[100] -translate-y-20 focus:translate-y-0"
+        >
+          Skip to content
+        </a>
         <Header />
-        <main className="flex-1">{children}</main>
+        <main id="main" className="flex-1">
+          {children}
+        </main>
         <Footer />
         <StickyBottomAd />
-        {process.env.NEXT_PUBLIC_ADS_ENABLED === "true" &&
-          process.env.NEXT_PUBLIC_AD_PROVIDER === "custom" &&
-          process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL && (
-            <Script
-              id="ad-network-multitag"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `(function(ghy){
-var d = document,
-    s = d.createElement('script'),
-    l = d.currentScript || d.scripts[d.scripts.length - 1];
-s.settings = ghy || {};
-s.src = ${JSON.stringify(process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL)};
-s.async = true;
-s.referrerPolicy = 'no-referrer-when-downgrade';
-l.parentNode.insertBefore(s, l);
-})({ appendTo: '[data-custom-placement="home-top"], [data-custom-placement="player-bottom"], [data-custom-placement="details-mid"], [data-custom-placement="home-feed"]' });`,
-              }}
-            />
-          )}
+        <AdRuntime />
       </body>
     </html>
   );

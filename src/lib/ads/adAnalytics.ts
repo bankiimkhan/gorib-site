@@ -32,7 +32,6 @@ export function trackAdEvent(
 
   // Developer mode logging
   if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_AD_DEBUG === "true") {
-    // eslint-disable-next-line no-console
     console.debug(`[AdAnalytics] ${type.toUpperCase()} on "${placement}" (${provider})`, metadata || "");
   }
 }

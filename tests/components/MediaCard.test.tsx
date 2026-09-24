@@ -25,10 +25,12 @@ describe("MediaCard Component", () => {
     expect(getByText("Inception")).toBeInTheDocument();
     expect(getByText("2010")).toBeInTheDocument();
     expect(getByText("8.8")).toBeInTheDocument();
-    expect(getByText("Sci-Fi")).toBeInTheDocument();
 
     const watchLink = getByRole("link", { name: /Play Inception/i });
     expect(watchLink).toHaveAttribute("href", "/watch/movie/12345");
+
+    const detailLink = getByRole("link", { name: "Inception" });
+    expect(detailLink).toHaveAttribute("href", "/movie/12345");
   });
 
   it("handles fallback graphic gracefully when posterUrl is missing", () => {

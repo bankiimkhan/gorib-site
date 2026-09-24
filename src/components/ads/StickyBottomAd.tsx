@@ -1,12 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { isPlacementActive } from "@/lib/ads/adConfig";
+import { isPlayerRoute } from "@/lib/ads/playerRoutes";
 import { AdSlot } from "./AdSlot";
 
 const DISMISS_STORAGE_KEY = "gorib_sticky_ad_dismissed";
+
+const noopSubscribe = () => () => {};
+function readDismissed(): boolean {
+  try {
+    return sessionStorage.getItem(DISMISS_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Mobile-only sticky bottom banner (320x50 standard IAB anchor).
@@ -18,28 +28,16 @@ const DISMISS_STORAGE_KEY = "gorib_sticky_ad_dismissed";
  */
 export function StickyBottomAd() {
   const pathname = usePathname();
-  const [isDismissed, setIsDismissed] = useState(true); // Default true until verified on client
-  const [isMounted, setIsMounted] = useState(false);
+  const [dismissedNow, setDismissedNow] = useState(false);
+  // Treated as dismissed during SSR/hydration so the banner never flashes in.
+  const dismissedInSession = useSyncExternalStore(noopSubscribe, readDismissed, () => true);
+  const isDismissed = dismissedNow || dismissedInSession;
 
   const active = isPlacementActive("mobile-sticky");
 
-  useEffect(() => {
-    setIsMounted(true);
-    try {
-      const dismissed = sessionStorage.getItem(DISMISS_STORAGE_KEY);
-      if (dismissed === "true") {
-        setIsDismissed(true);
-      } else {
-        setIsDismissed(false);
-      }
-    } catch {
-      setIsDismissed(false);
-    }
-  }, []);
-
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsDismissed(true);
+    setDismissedNow(true);
     try {
       sessionStorage.setItem(DISMISS_STORAGE_KEY, "true");
     } catch {
@@ -48,18 +46,19 @@ export function StickyBottomAd() {
   };
 
   // Don't render if not mounted, not active, already dismissed, or on active player pages
-  if (!isMounted || !active || isDismissed) {
+  if (!active || isDismissed) {
     return null;
   }
 
-  // Hide on watch pages to never obstruct player controls or touch targets
-  if (pathname?.startsWith("/watch")) {
+  // Never render on player pages (movies, episodes, live TV): a fixed banner
+  // would sit over the player controls on small screens.
+  if (isPlayerRoute(pathname)) {
     return null;
   }
 
   return (
     <aside
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#07090e]/95 backdrop-blur-xl border-t border-zinc-800 shadow-2xl px-3 py-1.5"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-canvas/95 backdrop-blur-xl border-t border-line shadow-2xl px-3 py-1.5"
       role="complementary"
       aria-label="Mobile sticky advertisement"
       data-testid="mobile-sticky-ad"
@@ -74,7 +73,7 @@ export function StickyBottomAd() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="absolute -top-1 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800/90 text-zinc-400 hover:text-white transition-colors"
+          className="absolute -top-1 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-fg-muted hover:text-white transition-colors"
           aria-label="Dismiss advertisement"
         >
           <X className="h-3.5 w-3.5" />

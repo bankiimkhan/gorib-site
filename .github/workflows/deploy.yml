@@ -56,13 +56,15 @@ jobs:
           NEXT_PUBLIC_AD_SLOTS_ENABLED: "true"
           NEXT_PUBLIC_AD_PROVIDER: "custom"
           NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL: "https://unfoldedtrade.com/b/XbV-s.dwG/l-0wYfWbcx/oe/mj9JuUZlUfl/kNPCTEcv0LN/TFQi0SO/DoU/tTNPzoQm1aN/DyQf4hODQL"
+          # Multitag with popunder/overlay modules: never loaded on player pages.
+          NEXT_PUBLIC_CUSTOM_AD_PLAYER_SAFE: "false"
           NEXT_PUBLIC_AD_HOME_TOP: "true"
           NEXT_PUBLIC_AD_HOME_FEED: "true"
           NEXT_PUBLIC_AD_DETAILS_MID: "true"
           NEXT_PUBLIC_AD_PLAYER_BOTTOM: "true"
-          NEXT_PUBLIC_AD_CATALOG_HEADER: "false"
-          NEXT_PUBLIC_AD_CATALOG_IN_FEED: "false"
-          NEXT_PUBLIC_AD_SEARCH: "false"
+          NEXT_PUBLIC_AD_CATALOG_HEADER: "true"
+          NEXT_PUBLIC_AD_CATALOG_IN_FEED: "true"
+          NEXT_PUBLIC_AD_SEARCH: "true"
           NEXT_PUBLIC_AD_LIVE_TV: "false"
           NEXT_PUBLIC_AD_MOBILE_STICKY: "true"
           TMDB_BASE_URL: https://api.themoviedb.org/3

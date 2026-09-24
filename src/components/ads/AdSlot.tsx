@@ -2,7 +2,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AdPlacement } from "@/lib/ads/types";
-import { getAdConfig, isPlacementActive, PLACEMENT_DIMENSIONS } from "@/lib/ads/adConfig";
+import {
+  getAdConfig,
+  isPlacementActive,
+  isProviderPlayerSafe,
+  PLACEMENT_DIMENSIONS,
+  PLAYER_PAGE_PLACEMENTS,
+} from "@/lib/ads/adConfig";
 import { AdProviderRenderer } from "@/lib/ads/providers";
 import { trackAdEvent } from "@/lib/ads/adAnalytics";
 
@@ -21,15 +27,22 @@ interface AdSlotProps {
  * - Provider abstraction (Placeholder, AdSense, Custom).
  * - Layout reservation to prevent Cumulative Layout Shift.
  * - Viewability tracking (50% in viewport for 1 second continuous).
+ * - Collapses when the provider is blocked or reports no fill.
+ * - Player-page placements only render player-safe providers; nothing is ever
+ *   rendered inside or over the video player itself.
  */
 export function AdSlot({ placement, className = "", priority = false }: AdSlotProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInView, setIsInView] = useState(priority);
-  const [isRendered, setIsRendered] = useState(false);
+  const impressionSentRef = useRef(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const viewableTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const active = isPlacementActive(placement);
   const config = getAdConfig();
+  const active =
+    isPlacementActive(placement) &&
+    !isCollapsed &&
+    (!PLAYER_PAGE_PLACEMENTS.includes(placement) || isProviderPlayerSafe(config));
   const dimensions = PLACEMENT_DIMENSIONS[placement] || PLACEMENT_DIMENSIONS["home-top"];
 
   // IntersectionObserver for lazy-loading ad assets
@@ -95,11 +108,11 @@ export function AdSlot({ placement, className = "", priority = false }: AdSlotPr
 
   // Fire initial impression once loaded in view
   useEffect(() => {
-    if (active && isInView && !isRendered) {
-      setIsRendered(true);
+    if (active && isInView && !impressionSentRef.current) {
+      impressionSentRef.current = true;
       trackAdEvent("impression", placement, config.provider);
     }
-  }, [active, isInView, isRendered, placement, config.provider]);
+  }, [active, isInView, placement, config.provider]);
 
   if (!active) {
     return null;
@@ -110,7 +123,7 @@ export function AdSlot({ placement, className = "", priority = false }: AdSlotPr
       ref={containerRef}
       data-ad-placement={placement}
       data-ad-provider={config.provider}
-      className={`mx-auto my-3 sm:my-6 px-2 sm:px-0 flex w-full items-center justify-center transition-opacity duration-300 ${dimensions.minHeightClass} ${dimensions.maxWidthClass} ${className}`}
+      className={`mx-auto my-4 sm:my-8 px-4 sm:px-0 flex w-full items-center justify-center transition-opacity duration-300 ${dimensions.minHeightClass} ${dimensions.maxWidthClass} ${className}`}
       role="region"
       aria-label={`Advertisement slot: ${placement}`}
     >
@@ -119,6 +132,7 @@ export function AdSlot({ placement, className = "", priority = false }: AdSlotPr
           placement={placement}
           provider={config.provider}
           placeholderMode={config.placeholderMode}
+          onUnfilled={() => setIsCollapsed(true)}
         />
       ) : (
         // Blank CLS-safe reservation box while waiting to scroll into view

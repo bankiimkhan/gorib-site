@@ -69,6 +69,19 @@ export interface MediaItem {
   director?: string;
   originalLanguage?: string;
   spokenLanguages?: string[];
+  countries?: string[];
+  recommendations?: MediaItem[];
+  reviews?: Review[];
+}
+
+export interface Review {
+  id: string;
+  author: string;
+  avatarUrl?: string;
+  rating?: number;
+  content: string;
+  createdAt: string;
+  url?: string;
 }
 
 export interface TVShow extends MediaItem {
@@ -86,10 +99,14 @@ export interface MediaPageResult<T = MediaItem> {
   totalResults: number;
 }
 
+export type CatalogSort = "popularity.desc" | "vote_average.desc" | "primary_release_date.desc";
+
 export interface MediaFilterOptions {
   genreId?: number;
-  year?: number;
-  sortBy?: "popularity.desc" | "vote_average.desc" | "primary_release_date.desc";
+  /** A single year (2024) or a decade key ("2010s"). */
+  year?: number | string;
+  /** Movie-style sort keys; TV discovery maps release-date sorting to first_air_date. */
+  sortBy?: CatalogSort;
   page?: number;
   language?: string;
   originCountry?: string;

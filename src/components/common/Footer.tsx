@@ -2,7 +2,42 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { PlaySquare, ArrowUp, Film, Radio, Sparkles } from "lucide-react";
+import { ArrowUp } from "lucide-react";
+import { Logo } from "./Logo";
+
+const FOOTER_COLUMNS = [
+  {
+    title: "Browse",
+    links: [
+      { label: "Home", href: "/" },
+      { label: "Movies", href: "/movies" },
+      { label: "TV Shows", href: "/tv" },
+      { label: "New & Popular", href: "/trending" },
+      { label: "Live TV", href: "/live-tv" },
+      { label: "My List", href: "/watchlist" },
+    ],
+  },
+  {
+    title: "Regional",
+    links: [
+      { label: "Bangla Cinema", href: "/movies?language=bn" },
+      { label: "Bollywood", href: "/movies?language=hi" },
+      { label: "South Indian", href: "/movies?language=south" },
+      { label: "K-Drama", href: "/tv?language=ko&genre=18" },
+      { label: "Anime", href: "/tv?language=ja&genre=16" },
+    ],
+  },
+  {
+    title: "Genres",
+    links: [
+      { label: "Action", href: "/genre/action" },
+      { label: "Comedy", href: "/genre/comedy" },
+      { label: "Drama", href: "/genre/drama" },
+      { label: "Sci-Fi", href: "/genre/sci-fi" },
+      { label: "Animation", href: "/genre/animation" },
+    ],
+  },
+];
 
 export function Footer() {
   const [viewers, setViewers] = useState<number>(1);
@@ -86,186 +121,63 @@ export function Footer() {
   }, []);
 
   const scrollToTop = () => {
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <footer className="w-full border-t border-zinc-900/80 bg-[#05070a] text-zinc-400">
-      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 pt-12 pb-14 sm:pt-14 sm:pb-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 sm:gap-10 xl:gap-12">
-          {/* Brand & Mission Col */}
-          <div className="sm:col-span-2 md:col-span-1 lg:col-span-1 xl:col-span-1 space-y-4">
-            <Link
-              href="/"
-              className="group inline-flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-lg"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-black shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
-                <PlaySquare className="h-5 w-5 fill-black text-black" />
-              </div>
-              <span className="text-2xl font-black tracking-wider text-white">
-                GORIB<span className="text-amber-500">.LOL</span>
-              </span>
-            </Link>
-            <p className="text-xs leading-relaxed text-zinc-400">
-              A premium cinematic entertainment platform providing instant access to high-definition movies and television series.
+    <footer className="mt-auto w-full border-t border-line bg-canvas text-fg-subtle">
+      <div className="shell mx-auto max-w-[1400px] py-12 sm:py-16">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-5">
+          <div className="col-span-2 md:col-span-4 lg:col-span-1">
+            <Logo />
+            <p className="mt-3 max-w-xs text-sm leading-relaxed">
+              Movies, series and live TV in one place, with a fast, distraction-free player.
             </p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <span className="inline-flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/80 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-                <Sparkles className="h-3 w-3 text-amber-500" />
-                1080p HD
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/80 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-                <Film className="h-3 w-3 text-amber-500" />
-                BDIX Fast
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/80 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-                <Radio className="h-3 w-3 text-emerald-400" />
-                Live Streams
-              </span>
-            </div>
           </div>
 
-          {/* Navigation / Explore */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">Explore</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Home
-                </Link>
-              </li>
-              <li>
-                <Link href="/movies" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Movies
-                </Link>
-              </li>
-              <li>
-                <Link href="/tv" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  TV Shows
-                </Link>
-              </li>
-              <li>
-                <Link href="/live-tv" className="text-zinc-400 hover:text-amber-400 transition-colors inline-flex items-center gap-1.5">
-                  <span>Live TV</span>
-                  <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                </Link>
-              </li>
-              <li>
-                <Link href="/watchlist" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  My List
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {FOOTER_COLUMNS.map((col) => (
+            <nav key={col.title} aria-label={col.title}>
+              <h2 className="mb-3 text-sm font-semibold text-fg-muted">{col.title}</h2>
+              <ul className="space-y-2.5 text-sm">
+                {col.links.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="transition-colors hover:text-white hover:underline">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
 
-          {/* Regional Cinema */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">Regional Cinema</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/movies?language=bn" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Bangla Cinema
-                </Link>
-              </li>
-              <li>
-                <Link href="/movies?language=hi" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Hindi / Bollywood
-                </Link>
-              </li>
-              <li>
-                <Link href="/movies?language=south" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  South Indian
-                </Link>
-              </li>
-              <li>
-                <Link href="/movies?sort=vote_average.desc" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Top Rated Movies
-                </Link>
-              </li>
-              <li>
-                <Link href="/tv?sort=popularity.desc" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Popular TV Series
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Popular Genres */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">Popular Genres</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/genre/action" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Action
-                </Link>
-              </li>
-              <li>
-                <Link href="/genre/comedy" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Comedy
-                </Link>
-              </li>
-              <li>
-                <Link href="/genre/drama" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Drama
-                </Link>
-              </li>
-              <li>
-                <Link href="/genre/sci-fi" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Sci-Fi
-                </Link>
-              </li>
-              <li>
-                <Link href="/genre/animation" className="text-zinc-400 hover:text-amber-400 transition-colors">
-                  Animation
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal & Attribution */}
-          <div className="sm:col-span-2 md:col-span-3 lg:col-span-4 xl:col-span-1 space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">Disclaimer & Attribution</h4>
-            <p className="text-xs leading-relaxed text-zinc-500">
-              This product uses the TMDB API for movie and television metadata, posters, and imagery, but is not endorsed or certified by TMDB. Live TV broadcast streams and channel directories are provided courtesy of the open-source iptv-org project.
-            </p>
-            <p className="text-xs leading-relaxed text-zinc-500">
-              gorib.lol does not store any files or streams on its servers. All streams are retrieved via external streaming providers and publicly accessible broadcast feeds.
+          <div className="col-span-2 md:col-span-1">
+            <h2 className="mb-3 text-sm font-semibold text-fg-muted">About</h2>
+            <p className="text-xs leading-relaxed">
+              Metadata and imagery are provided by TMDB; this product is not endorsed or certified by TMDB. Live TV
+              channel listings come from the open-source iptv-org project. No video files are stored on our servers.
             </p>
           </div>
         </div>
 
-        {/* Bottom Bar / Copyright */}
-        <div className="mt-10 sm:mt-12 lg:mt-16 border-t border-zinc-900/80 pt-6 sm:pt-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
-            <p className="text-center sm:text-left">
-              © {new Date().getFullYear()} gorib.lol. All rights reserved.
-            </p>
-            <div
-              className="inline-flex items-center gap-2 rounded-full border border-emerald-950/70 bg-emerald-950/25 px-3 py-1 text-xs text-zinc-300 shadow-sm"
-              aria-live="polite"
-              aria-label={`${viewers.toLocaleString()} live viewers watching now`}
-            >
+        <div className="mt-12 flex flex-col-reverse items-start justify-between gap-4 border-t border-line pt-6 text-xs sm:flex-row sm:items-center">
+          <p>© {new Date().getFullYear()} gorib.lol</p>
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-2" aria-live="polite">
               <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
               </span>
-              <span className="font-mono font-bold text-emerald-400">
-                {viewers.toLocaleString()}
+              <span>
+                <span className="font-semibold tabular-nums text-fg-muted">{viewers.toLocaleString()}</span> watching now
               </span>
-              <span className="text-zinc-400 text-[11px] sm:text-xs">
-                watching now
-              </span>
-            </div>
+            </span>
             <button
               type="button"
               onClick={scrollToTop}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1 text-xs font-medium text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-amber-400 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
-              aria-label="Scroll back to top"
+              className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
             >
-              <span>Back to top</span>
-              <ArrowUp className="h-3.5 w-3.5" />
+              Back to top
+              <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         </div>

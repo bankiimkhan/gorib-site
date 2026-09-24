@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 import { Metadata } from "next";
 import { SearchClient } from "./SearchClient";
-import { SearchSkeleton } from "@/components/common/Skeleton";
+import { PosterGridSkeleton } from "@/components/common/Skeleton";
 
 export const metadata: Metadata = {
   title: "Search Movies & TV Shows",
@@ -12,8 +12,8 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-16">
-          <SearchSkeleton />
+        <div className="shell pb-16 pt-44">
+          <PosterGridSkeleton count={16} />
         </div>
       }
     >

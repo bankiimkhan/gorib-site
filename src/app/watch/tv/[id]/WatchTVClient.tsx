@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { TVShow, Season, MediaItem } from "@/types/media";
+import { ArrowLeft, SkipBack, SkipForward } from "lucide-react";
+import { TVShow, Season } from "@/types/media";
 import { StreamResult } from "@/types/streaming";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { ServerSelector } from "@/components/player/ServerSelector";
+import { WatchlistButton } from "@/components/common/WatchlistButton";
+import { EpisodeList } from "@/components/tv/EpisodeList";
 import { useContinueWatching } from "@/lib/hooks/useContinueWatching";
-import { useWatchlist } from "@/lib/hooks/useWatchlist";
-import { ArrowLeft, SkipForward, Play, Bookmark, Check } from "lucide-react";
+import { formatRuntime } from "@/lib/utils/formatters";
+import { episodeHref } from "@/lib/utils/routes";
 
 interface WatchTVClientProps {
   tvShow: TVShow;
@@ -20,25 +22,48 @@ interface WatchTVClientProps {
   seasonData: Season | null;
 }
 
-export function WatchTVClient({
-  tvShow,
-  season,
-  episode,
-  streamResult,
-  seasonData,
-}: WatchTVClientProps) {
+export function WatchTVClient({ tvShow, season, episode, streamResult, seasonData }: WatchTVClientProps) {
   const router = useRouter();
-  const [activeSourceIndex, setActiveSourceIndex] = useState(0);
-  const { saveProgress, getSavedPosition } = useContinueWatching();
-  const { isInWatchlist, toggleWatchlist } = useWatchlist();
-  const isBookmarked = isInWatchlist(tvShow.id);
+  const [activeSourceIndex, setActiveSourceIndex] = useState(streamResult.defaultSourceIndex || 0);
+  const { saveProgress, markStarted, getSavedPosition } = useContinueWatching();
 
   const currentEpData = seasonData?.episodes?.find((e) => e.episodeNumber === episode);
   const totalEpsInSeason = seasonData?.episodes?.length || 1;
-  const hasNextEpisode = episode < totalEpsInSeason;
-  const nextEpisodeUrl = hasNextEpisode
-    ? `/watch/tv/${tvShow.tmdbId}?season=${season}&episode=${episode + 1}`
-    : undefined;
+  const watchableSeasons = (tvShow.seasons || []).filter((s) => s.seasonNumber > 0 && s.episodeCount > 0);
+  const seasonIndex = watchableSeasons.findIndex((s) => s.seasonNumber === season);
+  const nextSeason = seasonIndex >= 0 ? watchableSeasons[seasonIndex + 1] : undefined;
+  const prevSeason = seasonIndex > 0 ? watchableSeasons[seasonIndex - 1] : undefined;
+  const episodeUrl = (s: number, e: number) => episodeHref(tvShow.tmdbId, s, e);
+
+  // Next: following episode, or the first episode of the next season.
+  const nextEpisodeUrl =
+    episode < totalEpsInSeason
+      ? episodeUrl(season, episode + 1)
+      : nextSeason
+        ? episodeUrl(nextSeason.seasonNumber, 1)
+        : undefined;
+  const nextLabel =
+    episode < totalEpsInSeason ? `Episode ${episode + 1}` : nextSeason ? `Season ${nextSeason.seasonNumber}` : "";
+
+  // Previous: earlier episode, or the last episode of the previous season.
+  const prevEpisodeUrl =
+    episode > 1
+      ? episodeUrl(season, episode - 1)
+      : prevSeason
+        ? episodeUrl(prevSeason.seasonNumber, prevSeason.episodeCount)
+        : undefined;
+
+  useEffect(() => {
+    markStarted({
+      tmdbId: tvShow.tmdbId,
+      type: "tv",
+      title: tvShow.title,
+      posterUrl: tvShow.posterUrl,
+      backdropUrl: tvShow.backdropUrl,
+      season,
+      episode,
+    });
+  }, [markStarted, tvShow.tmdbId, tvShow.title, tvShow.posterUrl, tvShow.backdropUrl, season, episode]);
 
   const initialTime = getSavedPosition(tvShow.tmdbId, season, episode);
 
@@ -62,26 +87,13 @@ export function WatchTVClient({
     }
   };
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-16">
-      {/* Breadcrumb Back Link */}
-      <div className="mb-4 flex items-center justify-between">
-        <Link
-          href={`/tv/${tvShow.tmdbId}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to {tvShow.title}</span>
-        </Link>
-        <span className="text-xs font-bold text-amber-500">
-          Season {season} • Episode {episode}
-        </span>
-      </div>
+  const episodeTitle = currentEpData?.title || `Episode ${episode}`;
 
-      {/* Dominant Video Player */}
-      <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
+  return (
+    <div className="pt-16 lg:pt-[68px]">
+      <div className="mx-auto w-full max-w-[1600px] sm:px-6 sm:pt-4 lg:px-10">
         <VideoPlayer
-          title={`${tvShow.title} - S${season}:E${episode} ${currentEpData?.title || ""}`}
+          title={`${tvShow.title} · S${season}:E${episode} ${currentEpData?.title || ""}`}
           sources={streamResult.sources}
           poster={currentEpData?.stillUrl || tvShow.backdropUrl}
           initialTime={initialTime}
@@ -93,117 +105,77 @@ export function WatchTVClient({
         />
       </div>
 
-      {/* Dedicated Server Selection Bar */}
-      <ServerSelector
-        sources={streamResult.sources}
-        activeSourceIndex={activeSourceIndex}
-        onSelectSource={setActiveSourceIndex}
-      />
+      <div className="shell mx-auto max-w-[1600px] sm:px-6 lg:px-10">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <Link href={`/tv/${tvShow.tmdbId}`} className="btn btn-ghost btn-sm -ml-3 max-w-full">
+            <ArrowLeft className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <span className="truncate">{tvShow.title}</span>
+          </Link>
+          <ServerSelector
+            sources={streamResult.sources}
+            activeSourceIndex={activeSourceIndex}
+            onSelectSource={setActiveSourceIndex}
+          />
+        </div>
 
-      {/* Episode Header & Info */}
-      <div className="mt-8 flex flex-col md:flex-row md:items-start md:justify-between gap-6 pb-8 border-b border-white/5">
-        <div className="space-y-3 max-w-3xl">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="rounded-md bg-amber-500/20 px-2.5 py-0.5 font-bold text-amber-400 border border-amber-500/30">
-              Season {season} Episode {episode}
-            </span>
-            {currentEpData?.airDate && (
-              <span className="text-zinc-500">{currentEpData.airDate}</span>
+        <div className="mt-6 flex flex-col gap-5 border-b border-line pb-8 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold text-fg-muted">
+              Season {season} · Episode {episode}
+              {currentEpData?.runtime ? ` · ${formatRuntime(currentEpData.runtime)}` : ""}
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">{episodeTitle}</h1>
+            <p className="mt-3 text-sm leading-relaxed text-fg-muted sm:text-base">
+              {currentEpData?.overview || tvShow.overview}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {prevEpisodeUrl && (
+              <Link href={prevEpisodeUrl} className="btn btn-secondary" aria-label="Previous episode">
+                <SkipBack className="h-4 w-4 fill-white" aria-hidden="true" />
+                <span className="hidden sm:inline">Previous</span>
+              </Link>
             )}
+            {nextEpisodeUrl && (
+              <Link href={nextEpisodeUrl} className="btn btn-primary">
+                <SkipForward className="h-4 w-4 fill-black" aria-hidden="true" />
+                Next: {nextLabel}
+              </Link>
+            )}
+            <WatchlistButton item={tvShow} />
           </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            {currentEpData?.title || `Episode ${episode}`}
-          </h1>
-
-          <p className="text-sm text-zinc-300 leading-relaxed">
-            {currentEpData?.overview || tvShow.overview}
-          </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Next Episode CTA Button */}
-          {hasNextEpisode && (
-            <Link
-              href={nextEpisodeUrl!}
-              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20 active:scale-95"
-            >
-              <SkipForward className="h-4 w-4 fill-black" />
-              <span>Next: Ep {episode + 1}</span>
-            </Link>
-          )}
+        {watchableSeasons.length > 1 && (
+          <nav aria-label="Seasons" className="no-scrollbar -mx-[max(1rem,4vw)] mt-8 flex gap-2 overflow-x-auto px-[max(1rem,4vw)] sm:mx-0 sm:px-0">
+            {watchableSeasons.map((s) => (
+              <Link
+                key={s.id}
+                href={episodeUrl(s.seasonNumber, 1)}
+                aria-current={s.seasonNumber === season ? "page" : undefined}
+                className="chip h-9 px-4 text-sm"
+              >
+                {s.name || `Season ${s.seasonNumber}`}
+              </Link>
+            ))}
+          </nav>
+        )}
 
-          {/* Watchlist Toggle */}
-          <button
-            type="button"
-            onClick={() => toggleWatchlist(tvShow as unknown as MediaItem)}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition-colors ${
-              isBookmarked
-                ? "border-amber-500/60 bg-amber-500/15 text-amber-400"
-                : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800"
-            }`}
-          >
-            {isBookmarked ? <Check className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-            <span>{isBookmarked ? "In My List" : "Add to List"}</span>
-          </button>
-        </div>
+        {seasonData?.episodes && seasonData.episodes.length > 0 && (
+          <section className="mt-6" aria-labelledby="episodes-heading">
+            <h2 id="episodes-heading" className="section-title">
+              Season {season} episodes
+            </h2>
+            <EpisodeList
+              tvId={tvShow.tmdbId}
+              episodes={seasonData.episodes}
+              activeEpisode={episode}
+              activeLabel="Now playing"
+            />
+          </section>
+        )}
       </div>
-
-      {/* Episode Navigation Drawer / Strip */}
-      {seasonData?.episodes && seasonData.episodes.length > 0 && (
-        <div className="mt-10">
-          <h3 className="text-lg font-bold text-white mb-4">
-            Season {season} Episodes
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {seasonData.episodes.map((ep) => {
-              const isActive = ep.episodeNumber === episode;
-              const epUrl = `/watch/tv/${tvShow.tmdbId}?season=${season}&episode=${ep.episodeNumber}`;
-
-              return (
-                <Link
-                  key={ep.id}
-                  href={epUrl}
-                  className={`group flex gap-3 p-2.5 rounded-xl border transition-all ${
-                    isActive
-                      ? "border-amber-500/60 bg-amber-500/10 ring-1 ring-amber-500/30"
-                      : "border-zinc-800/80 bg-zinc-900/60 hover:bg-zinc-800 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="relative aspect-video w-24 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-950">
-                    {ep.stillUrl ? (
-                      <Image
-                        src={ep.stillUrl}
-                        alt={ep.title}
-                        fill
-                        sizes="96px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
-                        EP {ep.episodeNumber}
-                      </div>
-                    )}
-                    {isActive && (
-                      <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
-                        <Play className="h-4 w-4 fill-amber-400 text-amber-400" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 py-0.5">
-                    <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-amber-400 transition-colors">
-                      {ep.episodeNumber}. {ep.title}
-                    </div>
-                    <div className="text-[11px] text-zinc-500 mt-1">
-                      {ep.runtime ? `${ep.runtime}m` : ""}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

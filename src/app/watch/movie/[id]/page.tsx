@@ -1,7 +1,7 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
-import { getMovieDetails, getTrending } from "@/lib/api/tmdb/client";
+import { getMovieDetails } from "@/lib/api/tmdb/client";
 import { resolveMovieStream } from "@/lib/api/streaming/resolver";
 import { WatchMovieClient } from "./WatchMovieClient";
 import { MediaRow } from "@/components/common/MediaRow";
@@ -44,17 +44,17 @@ export default async function WatchMoviePage({ params }: WatchMoviePageProps) {
     imdbId: movie.imdbId,
   });
 
-  const trending = await getTrending("movie", "week");
-  const similarMovies = trending.filter((m) => m.tmdbId !== tmdbId).slice(0, 8);
+  const similarMovies = movie.recommendations || [];
 
   return (
-    <div className="min-h-screen bg-[#07090e]">
+    <div className="min-h-screen">
       <WatchMovieClient movie={movie} streamResult={streamResult} />
 
+      {/* Below the player and its controls only; renders nothing for non-player-safe providers. */}
       <AdSlot placement="player-bottom" />
 
       {similarMovies.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 pb-16">
+        <div className="pb-16">
           <MediaRow title="More Like This" items={similarMovies} />
         </div>
       )}

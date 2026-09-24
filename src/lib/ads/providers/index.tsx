@@ -11,6 +11,8 @@ interface AdProviderRendererProps {
   provider: AdProviderType;
   placeholderMode: PlaceholderMode;
   className?: string;
+  /** Called when the slot cannot be filled (blocked, failed, no inventory) so the host can collapse it. */
+  onUnfilled?: () => void;
 }
 
 export function AdProviderRenderer({
@@ -18,12 +20,13 @@ export function AdProviderRenderer({
   provider,
   placeholderMode,
   className = "",
+  onUnfilled,
 }: AdProviderRendererProps) {
   switch (provider) {
     case "adsense":
-      return <AdSenseProvider placement={placement} className={className} />;
+      return <AdSenseProvider placement={placement} className={className} onUnfilled={onUnfilled} />;
     case "custom":
-      return <CustomScriptProvider placement={placement} className={className} />;
+      return <CustomScriptProvider placement={placement} className={className} onUnfilled={onUnfilled} />;
     case "placeholder":
     default:
       return (

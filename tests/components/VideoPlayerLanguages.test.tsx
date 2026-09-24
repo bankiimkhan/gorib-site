@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { StreamSource } from "@/types/streaming";
 
@@ -92,10 +92,12 @@ describe("VideoPlayer Language & Subtitle Switching", () => {
     fireEvent.click(audioSubsBtn);
 
     // Should clearly show empty state for subtitles
-    expect(screen.getByText(/No subtitles available for this title/i)).toBeInTheDocument();
+    expect(screen.getByText(/No subtitles for this title/i)).toBeInTheDocument();
 
-    // Should indicate single audio stream
-    expect(screen.getByText(/Single audio stream/i)).toBeInTheDocument();
+    // Exactly one audio option, and it is selected
+    const audioOptions = within(screen.getByRole("group", { name: "Audio" })).getAllByRole("button");
+    expect(audioOptions).toHaveLength(1);
+    expect(audioOptions[0]).toHaveAttribute("aria-pressed", "true");
   });
 
   it("preserves user preference when loading a new title with matching tracks", () => {
@@ -106,7 +108,9 @@ describe("VideoPlayer Language & Subtitle Switching", () => {
 
     const audioSubsBtn = screen.getByTitle(/Audio & Subtitles/i);
     fireEvent.click(audioSubsBtn);
-    // CC Active badge should be rendered since 'es' was matched
-    expect(screen.getByText("CC Active")).toBeInTheDocument();
+    // Spanish is pre-selected since 'es' was matched
+    const subtitles = within(screen.getByRole("group", { name: "Subtitles" }));
+    expect(subtitles.getByRole("button", { name: "Spanish" })).toHaveAttribute("aria-pressed", "true");
+    expect(subtitles.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "false");
   });
 });

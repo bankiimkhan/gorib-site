@@ -44,9 +44,18 @@ The platform includes a dedicated HTML5 & `hls.js` video player, local anonymous
 - **Device-Local Privacy**:
   - Watchlist ("My List") and Continue Watching progress are stored strictly in `localStorage`.
   - Zero fake server accounts or invasive tracking.
+- **Discovery**:
+  - Catalog filters for genre, origin country, year or decade, original language, and sort (Popular / Latest / Top Rated with a minimum vote floor), all in the URL.
+  - `/trending` rankings (today / this week, movies / TV), Top 10 row, K-Drama and Anime rows.
+  - Header instant search with keyboard navigation and device-local recent searches; search results paginate with "Load more".
+  - Detail pages: TMDB recommendations, trailer, cast, TMDB user reviews, share, IMDb link, "Continue S2:E3" resume.
+  - TV watch page: season switcher, previous/next episode with rollover to the next season.
 - **Ad Slot Infrastructure**:
-  - Pluggable `<AdSlot placement="..." />` components (`home-top`, `home-feed`, `details`, `player-bottom`, `search`).
-  - Configurable via `NEXT_PUBLIC_AD_SLOTS_ENABLED=false` (renders `null` with 0 layout shift when disabled).
+  - Pluggable `<AdSlot placement="..." />` components: `home-top`, `home-feed`, `catalog-header`, `catalog-in-feed` (`<NativeAdCard />`), `search-banner`, `details-mid`, `player-bottom`, `live-tv-banner`, `mobile-sticky`.
+  - Providers live in `src/lib/ads/providers` (placeholder, AdSense, custom script); switch with `NEXT_PUBLIC_AD_PROVIDER`.
+  - Slots lazy-load near the viewport, reserve space to avoid layout shift, and collapse when blocked or unfilled.
+  - **The video player is always ad-free.** Nothing renders inside or over it. Custom multitags (which often bundle popunders and click-capture overlays over iframes) are never loaded on `/watch/*` or `/live-tv`, and once one has run in a tab, links into player pages become full page loads so the player starts in a clean document. `player-bottom` only renders for display-only providers (AdSense, or a custom tag explicitly marked `NEXT_PUBLIC_CUSTOM_AD_PLAYER_SAFE=true`). See `src/lib/ads/playerRoutes.ts` and `src/components/ads/AdRuntime.tsx`.
+  - Configurable via `NEXT_PUBLIC_ADS_ENABLED` / per-placement flags (renders `null` with 0 layout shift when disabled).
 
 ---
 

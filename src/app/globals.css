@@ -1,90 +1,225 @@
 @import "tailwindcss";
 
-:root {
-  --background: #07090e;
-  --foreground: #f3f4f6;
-  --card: #0e121a;
-  --card-hover: #151b26;
-  --border: #1f2733;
-  --primary: #f59e0b;
-  --primary-hover: #d97706;
-  --accent: #06b6d4;
-  --muted: #94a3b8;
+/* ==========================================================================
+   Design tokens
+   One dark, cinematic palette: near-black canvas, neutral surfaces, white
+   primary actions, and a single red accent used sparingly (progress, live,
+   active states). Ratings get their own gold so they never read as accent.
+   ========================================================================== */
+@theme {
+  --color-canvas: #0c0c0e;
+  --color-surface: #16161a;
+  --color-surface-2: #202026;
+  --color-surface-3: #2b2b32;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+
+  --color-fg: #f4f4f5;
+  --color-fg-muted: #a1a1aa;
+  --color-fg-subtle: #71717a;
+
+  --color-accent: #e11d2a;
+  --color-accent-hover: #f03340;
+  --color-rating: #f5c518;
+  --color-success: #34d399;
+
+  --font-sans: var(--font-ui), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow-card: 0 12px 32px -8px rgb(0 0 0 / 0.75);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.85);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-hover: var(--card-hover);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-accent: var(--accent);
-  --color-muted: var(--muted);
-  --font-sans: var(--font-netflix-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+html {
+  color-scheme: dark;
+  background-color: var(--color-canvas);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
   min-height: 100vh;
   overflow-x: hidden;
-  font-family: var(--font-netflix-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+::selection {
+  background: var(--color-accent);
+  color: #fff;
 }
 
-::-webkit-scrollbar-track {
-  background: #07090e;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1f2733;
+/* One visible focus treatment everywhere; mouse clicks stay clean. */
+:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
   border-radius: 4px;
 }
 
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-canvas);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 999px;
+  border: 2px solid var(--color-canvas);
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #3f3f46;
 }
 
-/* Hide scrollbar for carousel rows while retaining scroll */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+@layer components {
+  /* Page gutter shared by every page, rail and header: edge-to-edge like a TV UI. */
+  .shell {
+    width: 100%;
+    padding-inline: max(1rem, 4vw);
+  }
+
+  /* ---- Buttons ---------------------------------------------------------- */
+  .btn {
+    @apply inline-flex h-10 select-none items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold whitespace-nowrap transition-[background-color,color,border-color,transform] duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-lg {
+    @apply h-11 px-6 text-base sm:h-12 sm:px-7;
+  }
+  .btn-sm {
+    @apply h-8 gap-1.5 px-3 text-xs;
+  }
+  /* White "Play" — the one obvious primary action on a screen. */
+  .btn-primary {
+    @apply bg-white text-black hover:bg-white/80;
+  }
+  /* Translucent grey — secondary actions over imagery or the canvas. */
+  .btn-secondary {
+    @apply bg-white/15 text-white backdrop-blur-sm hover:bg-white/25;
+  }
+  .btn-accent {
+    @apply bg-accent text-white hover:bg-accent-hover;
+  }
+  .btn-ghost {
+    @apply text-fg-muted hover:bg-white/10 hover:text-white;
+  }
+  /* Round outlined icon button (My List, share, rail arrows). */
+  .btn-icon {
+    @apply inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-black/40 text-white backdrop-blur-sm transition-[background-color,border-color,transform] duration-150 hover:border-white active:scale-95;
+  }
+
+  /* ---- Chips / tabs ------------------------------------------------------ */
+  .chip {
+    @apply inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-xs font-medium whitespace-nowrap text-fg-muted transition-colors hover:border-white/40 hover:text-white;
+  }
+  .chip[aria-current],
+  .chip[aria-pressed="true"],
+  .chip-active {
+    @apply border-white bg-white text-black hover:text-black;
+  }
+
+  /* ---- Surfaces & inputs -------------------------------------------------- */
+  .panel {
+    @apply rounded-lg border border-line bg-surface;
+  }
+  .popover {
+    @apply rounded-lg border border-line-strong bg-surface/95 shadow-pop backdrop-blur-xl;
+  }
+  .input {
+    @apply h-11 w-full rounded-md border border-line-strong bg-black/60 px-4 text-sm text-white placeholder:text-fg-subtle transition-colors outline-none focus:border-white/70 focus:bg-black/80;
+  }
+
+  /* ---- Type --------------------------------------------------------------- */
+  .page-title {
+    @apply text-3xl font-bold tracking-tight text-white sm:text-4xl;
+  }
+  .section-title {
+    @apply text-lg font-bold tracking-tight text-white sm:text-xl;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold tracking-wider text-fg-subtle uppercase;
+  }
+  .meta-dot > * + *::before {
+    content: "·";
+    @apply mx-2 text-fg-subtle;
+  }
+
+  /* ---- Layout helpers ----------------------------------------------------- */
+  /* One poster grid for catalog, search, watchlist. */
+  .poster-grid {
+    @apply grid grid-cols-3 gap-x-2.5 gap-y-6 sm:grid-cols-4 sm:gap-x-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8;
+  }
 }
 
-.no-scrollbar {
+@utility no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-/* Cinematic text drop-shadow */
-.text-shadow-lg {
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 4px 20px rgba(0, 0, 0, 0.6);
+@utility text-shadow-hero {
+  text-shadow: 0 2px 16px rgb(0 0 0 / 0.55);
 }
 
 /* Billboard slide timer - duration mirrors SLIDE_DURATION_MS in HeroCarousel */
 @keyframes hero-progress {
   from {
-    width: 0%;
+    transform: scaleX(0);
   }
   to {
-    width: 100%;
+    transform: scaleX(1);
   }
 }
-
 .animate-hero-progress {
-  animation: hero-progress 7000ms linear forwards;
+  transform-origin: left;
+  animation: hero-progress 8000ms linear forwards;
 }
 
-/* Shimmer animation for skeletons */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 500ms var(--ease-out-soft) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 200ms ease-out both;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 260ms var(--ease-out-soft) both;
+}
+
+/* Skeleton shimmer */
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -93,16 +228,16 @@ body {
     background-position: 200% 0;
   }
 }
-
 .animate-shimmer {
-  background: linear-gradient(
+  background-color: var(--color-surface);
+  background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.03) 25%,
-    rgba(255, 255, 255, 0.08) 37%,
-    rgba(255, 255, 255, 0.03) 63%
+    rgb(255 255 255 / 0) 0%,
+    rgb(255 255 255 / 0.05) 40%,
+    rgb(255 255 255 / 0) 80%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.8s infinite;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -115,4 +250,3 @@ body {
     scroll-behavior: auto !important;
   }
 }
-

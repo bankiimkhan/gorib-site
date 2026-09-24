@@ -88,11 +88,12 @@ async function tmdbFetch<T>(
  */
 export async function getTrending(
   type: "movie" | "tv" | "all" = "all",
-  timeWindow: "day" | "week" = "week"
+  timeWindow: "day" | "week" = "week",
+  page = 1
 ): Promise<MediaItem[]> {
   const data = await tmdbFetch<TMDBPageResult<TMDBMovie | TMDBTVShow>>(
     `/trending/${type}/${timeWindow}`,
-    {},
+    { page },
     1800
   );
 
@@ -100,9 +101,11 @@ export async function getTrending(
     return type === "tv" ? MOCK_TRENDING_TV : MOCK_TRENDING_MOVIES;
   }
 
-  return data.results.map((item) =>
-    "title" in item ? normalizeMovie(item as TMDBMovie) : normalizeTVShow(item as TMDBTVShow)
-  );
+  return data.results
+    .filter((item) => "title" in item || "name" in item)
+    .map((item) =>
+      "title" in item ? normalizeMovie(item as TMDBMovie) : normalizeTVShow(item as TMDBTVShow)
+    );
 }
 
 /**
@@ -234,11 +237,14 @@ export async function getTopRatedTV(page = 1): Promise<MediaPageResult<TVShow>> 
 export async function getMovieDetails(id: number): Promise<MediaItem | null> {
   const data = await tmdbFetch<TMDBMovieDetails>(
     `/movie/${id}`,
-    { append_to_response: "credits,videos,recommendations,similar,external_ids" },
+    { append_to_response: "credits,videos,recommendations,similar,external_ids,reviews" },
     3600
   );
 
   if (!data) {
+    // With a real key, a miss means the title doesn't exist: let the page 404
+    // instead of rendering placeholder data. Mocks are for keyless dev/tests only.
+    if (API_KEY) return null;
     const mock = MOCK_TRENDING_MOVIES.find((m) => m.tmdbId === id);
     return mock || (MOCK_TRENDING_MOVIES[0] ? { ...MOCK_TRENDING_MOVIES[0], tmdbId: id } : null);
   }
@@ -252,11 +258,12 @@ export async function getMovieDetails(id: number): Promise<MediaItem | null> {
 export async function getTVDetails(id: number): Promise<TVShow | null> {
   const data = await tmdbFetch<TMDBTVDetails>(
     `/tv/${id}`,
-    { append_to_response: "credits,videos,recommendations,similar,external_ids" },
+    { append_to_response: "credits,videos,recommendations,similar,external_ids,reviews" },
     3600
   );
 
   if (!data) {
+    if (API_KEY) return null;
     const mock = MOCK_TRENDING_TV.find((t) => t.tmdbId === id);
     return mock || (MOCK_TRENDING_TV[0] ? { ...MOCK_TRENDING_TV[0], tmdbId: id } : null);
   }
@@ -275,6 +282,7 @@ export async function getTVSeason(tvId: number, seasonNumber: number): Promise<S
   );
 
   if (!data) {
+    if (API_KEY) return null;
     return { ...MOCK_SEASON_1, seasonNumber };
   }
 
@@ -335,23 +343,73 @@ function resolveOriginalLanguage(lang?: string): string | undefined {
   return lang;
 }
 
+/** Minimum votes before a title can rank under "Top Rated" (keeps out 10/10-from-3-votes noise). */
+const TOP_RATED_MIN_VOTES = { movie: 300, tv: 150 } as const;
+/** Regional catalogs have far fewer votes on TMDB; use a lower floor when filtering by language/country. */
+const TOP_RATED_MIN_VOTES_REGIONAL = 25;
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /**
- * Discovers movies by filter (genre, year, sort, language)
+ * Builds TMDB discover date/sort params shared by movie and TV discovery.
+ * - `year` accepts a single year or a decade key such as "2010s".
+ * - Newest-first sorting only includes titles already released.
+ * - Top-rated sorting requires a minimum vote count.
  */
-export async function discoverMovies(
+export function buildDiscoverParams(
+  type: "movie" | "tv",
   options: MediaFilterOptions
-): Promise<MediaPageResult<MediaItem>> {
+): Record<string, string | number | undefined> {
+  const dateField = type === "movie" ? "primary_release_date" : "first_air_date";
+  const yearField = type === "movie" ? "primary_release_year" : "first_air_date_year";
   const langParam = resolveOriginalLanguage(options.language);
+  const regional = Boolean(langParam || options.originCountry);
 
   const params: Record<string, string | number | undefined> = {
     page: options.page || 1,
+    include_adult: "false",
     with_genres: options.genreId,
-    primary_release_year: options.year,
-    sort_by: options.sortBy || "popularity.desc",
     with_original_language: langParam,
     with_origin_country: options.originCountry,
   };
 
+  const year = options.year !== undefined ? String(options.year) : undefined;
+  const decade = year?.match(/^(\d{3})0s$/);
+  if (decade) {
+    const start = Number(`${decade[1]}0`);
+    params[`${dateField}.gte`] = `${start}-01-01`;
+    params[`${dateField}.lte`] = `${start + 9}-12-31`;
+  } else if (year && /^\d{4}$/.test(year)) {
+    params[yearField] = Number(year);
+  }
+
+  switch (options.sortBy) {
+    case "vote_average.desc":
+      params.sort_by = "vote_average.desc";
+      params["vote_count.gte"] = regional ? TOP_RATED_MIN_VOTES_REGIONAL : TOP_RATED_MIN_VOTES[type];
+      break;
+    case "primary_release_date.desc":
+      params.sort_by = `${dateField}.desc`;
+      if (!params[`${dateField}.lte`]) params[`${dateField}.lte`] = todayIso();
+      // Skip placeholder entries with no artwork or votes.
+      params["vote_count.gte"] = regional ? 1 : 5;
+      break;
+    default:
+      params.sort_by = "popularity.desc";
+  }
+
+  return params;
+}
+
+/**
+ * Discovers movies by filter (genre, year/decade, sort, language, country)
+ */
+export async function discoverMovies(
+  options: MediaFilterOptions
+): Promise<MediaPageResult<MediaItem>> {
+  const params = buildDiscoverParams("movie", options);
   const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", params, 3600);
 
   if (!data) {
@@ -376,22 +434,12 @@ export async function discoverMovies(
 }
 
 /**
- * Discovers TV shows by filter (genre, year, sort, language)
+ * Discovers TV shows by filter (genre, year/decade, sort, language, country)
  */
 export async function discoverTV(
   options: MediaFilterOptions
 ): Promise<MediaPageResult<TVShow>> {
-  const langParam = resolveOriginalLanguage(options.language);
-
-  const params: Record<string, string | number | undefined> = {
-    page: options.page || 1,
-    with_genres: options.genreId,
-    first_air_date_year: options.year,
-    sort_by: options.sortBy || "popularity.desc",
-    with_original_language: langParam,
-    with_origin_country: options.originCountry,
-  };
-
+  const params = buildDiscoverParams("tv", options);
   const data = await tmdbFetch<TMDBPageResult<TMDBTVShow>>("/discover/tv", params, 3600);
 
   if (!data) {
@@ -503,3 +551,16 @@ export async function getTranslations(
   return tmdbFetch<TMDBTranslationsResult>(`/${type}/${tmdbId}/translations`, {}, 86400);
 }
 
+/**
+ * Popular Korean dramas (K-Drama row / filter)
+ */
+export async function getKoreanDramas(page = 1): Promise<MediaPageResult<TVShow>> {
+  return discoverTV({ language: "ko", genreId: 18, page, sortBy: "popularity.desc" });
+}
+
+/**
+ * Popular Japanese animation series
+ */
+export async function getAnime(page = 1): Promise<MediaPageResult<TVShow>> {
+  return discoverTV({ language: "ja", genreId: 16, page, sortBy: "popularity.desc" });
+}

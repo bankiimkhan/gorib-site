@@ -1,276 +1,333 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Search, Bookmark, Menu, X, PlaySquare } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ChevronDown, Menu, Search, X } from "lucide-react";
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { MOVIE_GENRES } from "@/lib/api/tmdb/genres";
+import { Logo } from "./Logo";
+import { SearchBox } from "./SearchBox";
+
+const NAV_LINKS = [
+  { name: "Home", href: "/" },
+  { name: "Movies", href: "/movies" },
+  { name: "TV Shows", href: "/tv" },
+  { name: "New & Popular", href: "/trending" },
+  { name: "Live TV", href: "/live-tv" },
+  { name: "My List", href: "/watchlist" },
+];
+
+const GENRES = MOVIE_GENRES.filter((g) => g.slug !== "tv-movie");
+
+const REGIONAL_LINKS = [
+  { name: "Bangla", href: "/movies?language=bn" },
+  { name: "Bollywood", href: "/movies?language=hi" },
+  { name: "South Indian", href: "/movies?language=south" },
+  { name: "K-Drama", href: "/tv?language=ko&genre=18" },
+  { name: "Anime", href: "/tv?language=ja&genre=16" },
+];
 
 export function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { watchlist } = useWatchlist();
+  const { watchlist, isLoaded } = useWatchlist();
 
   const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [genresOpen, setGenresOpen] = useState(false);
+
+  // Close every overlay when the route changes (render-time adjustment).
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (pathname !== prevPath) {
+    setPrevPath(pathname);
+    setDrawerOpen(false);
+    setSearchOpen(false);
+    setGenresOpen(false);
+  }
+
+  const genresRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Lock body scroll when mobile menu is open
+  // Drawer: lock page scroll, move focus in, close on Escape, restore focus.
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!drawerOpen) return;
+    const menuButton = menuButtonRef.current;
+    document.body.style.overflow = "hidden";
+    drawerRef.current?.querySelector<HTMLElement>("input, a, button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+      menuButton?.focus();
     };
-  }, [mobileMenuOpen]);
+  }, [drawerOpen]);
 
-  // Handle escape key to dismiss search or mobile drawer
+  // Genres popover: close on outside click or Escape.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMobileMenuOpen(false);
-        setSearchOpen(false);
-      }
+    if (!genresOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!genresRef.current?.contains(e.target as Node)) setGenresOpen(false);
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGenresOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [genresOpen]);
 
-  // Auto-focus search input when opened
   useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus();
-    }
+    if (!searchOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [searchOpen]);
 
-  const handleNavClick = () => {
-    setMobileMenuOpen(false);
-    setSearchOpen(false);
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const query = searchQuery.trim();
-    if (query) {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
-      setSearchOpen(false);
-      setMobileMenuOpen(false);
-    }
-  };
-
-  const navLinks = [
-    { name: "Home", href: "/" },
-    { name: "Movies", href: "/movies" },
-    { name: "TV Shows", href: "/tv" },
-    { name: "Live TV", href: "/live-tv", isLive: true },
-    { name: "My List", href: "/watchlist", badge: watchlist.length > 0 ? watchlist.length : undefined },
-  ];
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname?.startsWith(`${href}/`);
+  const listCount = isLoaded ? watchlist.length : 0;
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? "bg-[#07090e]/95 backdrop-blur-md shadow-lg shadow-black/50 border-b border-zinc-800/40 py-3"
-          : "bg-gradient-to-b from-black/80 via-black/40 to-transparent py-4"
-      }`}
-    >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-8">
-          <Link
-            href="/"
-            onClick={handleNavClick}
-            className="group flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-lg p-1"
-          >
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
-              <PlaySquare className="h-5 w-5 fill-white text-white" />
-            </div>
-            <span className="bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent text-2xl font-black tracking-wider">
-              GORIB<span className="text-amber-500">.LOL</span>
-            </span>
-          </Link>
+    <header className="fixed inset-x-0 top-0 z-50">
+      {/* Solid bar once scrolled. Kept on its own layer: a backdrop-filter on
+          <header> would trap the fixed-position drawer inside it. */}
+      <div
+        className={`pointer-events-none absolute inset-0 -z-10 bg-canvas/95 shadow-[0_1px_0_rgb(255_255_255/0.06)] backdrop-blur-md transition-opacity duration-300 ${
+          isScrolled ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden="true"
+      />
+      {/* Top scrim keeps the nav legible over bright hero imagery. */}
+      <div
+        className={`pointer-events-none absolute inset-0 -z-10 h-28 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${
+          isScrolled ? "opacity-0" : "opacity-100"
+        }`}
+        aria-hidden="true"
+      />
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1.5" aria-label="Main Navigation">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
-                    isActive
-                      ? "bg-zinc-800/80 text-white shadow-inner"
-                      : "text-zinc-400 hover:text-white hover:bg-zinc-800/40"
-                  }`}
-                >
-                  <span>{link.name}</span>
-                  {link.isLive && (
-                    <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                  )}
-                  {link.badge !== undefined && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
-                      {link.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+      <div className="shell flex h-16 items-center gap-6 lg:h-[68px] lg:gap-10">
+        <Logo />
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-3">
-          {/* Search Toggle / Input */}
-          <div className="relative">
+        <nav className="hidden items-center gap-5 lg:flex xl:gap-6" aria-label="Main">
+          {NAV_LINKS.map((link) => {
+            const active = isActive(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={`relative flex items-center gap-1.5 text-sm transition-colors ${
+                  active ? "font-semibold text-white" : "text-white/75 hover:text-white"
+                }`}
+              >
+                {link.name}
+                {link.href === "/live-tv" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
+                )}
+                {link.href === "/watchlist" && listCount > 0 && (
+                  <span className="rounded-full bg-white/15 px-1.5 text-[10px] font-bold leading-4 text-white">
+                    {listCount}
+                    <span className="sr-only"> saved</span>
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+
+          <div ref={genresRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setGenresOpen((o) => !o)}
+              aria-expanded={genresOpen}
+              aria-haspopup="true"
+              className={`flex items-center gap-1 text-sm transition-colors ${
+                genresOpen || pathname?.startsWith("/genre/") ? "text-white" : "text-white/75 hover:text-white"
+              }`}
+            >
+              Genres
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${genresOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+            {genresOpen && (
+              <div className="popover animate-fade-in absolute left-1/2 top-full mt-4 w-[420px] -translate-x-1/2 p-3">
+                <ul className="grid grid-cols-3 gap-0.5">
+                  {GENRES.map((g) => (
+                    <li key={g.id}>
+                      <Link
+                        href={`/genre/${g.slug}`}
+                        aria-current={pathname === `/genre/${g.slug}` ? "page" : undefined}
+                        className="block rounded px-3 py-1.5 text-sm text-fg-muted transition-colors hover:bg-white/10 hover:text-white aria-[current]:text-white"
+                      >
+                        {g.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Desktop: inline search with suggestions */}
+          <div className="hidden lg:block">
             {searchOpen ? (
-              <form onSubmit={handleSearchSubmit} className="flex items-center">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search movies, TV shows..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-48 sm:w-64 rounded-full border border-zinc-700 bg-zinc-900/90 px-4 py-1.5 pl-9 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+              <div className="animate-fade-in flex items-center gap-1">
+                <SearchBox autoFocus className="w-72 xl:w-80" onNavigate={() => setSearchOpen(false)} />
                 <button
                   type="button"
                   onClick={() => setSearchOpen(false)}
-                  className="ml-2 text-xs text-zinc-400 hover:text-white"
-                  aria-label="Close search input"
+                  className="btn btn-ghost h-9 w-9 px-0"
+                  aria-label="Close search"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </button>
-              </form>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800 transition-colors"
-                aria-label="Open search"
-                title="Search (Esc to close)"
+                className="btn btn-ghost h-9 w-9 px-0 text-white"
+                aria-label="Search"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
           </div>
 
-          {/* Quick Watchlist link */}
           <Link
-            href="/watchlist"
-            className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800 transition-colors"
-            title="My List"
-            aria-label="View My Watchlist"
+            href="/search"
+            className="btn btn-ghost h-10 w-10 px-0 text-white lg:hidden"
+            aria-label="Search"
           >
-            <Bookmark className="h-4 w-4" />
-            {watchlist.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-black ring-2 ring-[#07090e]">
-                {watchlist.length}
-              </span>
-            )}
+            <Search className="h-5 w-5" aria-hidden="true" />
           </Link>
 
-          {/* Mobile Menu Toggle */}
           <button
+            ref={menuButtonRef}
             type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex md:hidden h-9 w-9 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800"
-            aria-label="Toggle mobile menu"
+            onClick={() => setDrawerOpen(true)}
+            aria-expanded={drawerOpen}
+            aria-controls="mobile-drawer"
+            className="btn btn-ghost h-10 w-10 px-0 text-white lg:hidden"
+            aria-label="Open menu"
           >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-b border-zinc-800 bg-[#07090e]/95 backdrop-blur-xl px-4 pt-3 pb-6 space-y-3">
-          {/* Mobile Search Form */}
-          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-            <input
-              type="text"
-              placeholder="Search movies, TV shows, actors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-900/90 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
-            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
-          </form>
-
-          <div className="space-y-1">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={handleNavClick}
-                  className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-base font-medium transition-colors ${
-                    isActive
-                      ? "bg-amber-500/10 text-amber-400 font-semibold"
-                      : "text-zinc-300 hover:bg-zinc-800/60 hover:text-white"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span>{link.name}</span>
-                    {link.isLive && (
-                      <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-600/20 px-2 py-0.5 rounded-full border border-red-500/30">
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                        LIVE
-                      </span>
-                    )}
-                  </span>
-                  {link.badge !== undefined && (
-                    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-black">
-                      {link.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Quick Regional Links */}
-          <div className="pt-2 border-t border-zinc-800/80">
-            <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1 mb-2">
-              Regional Cinema
+      {/* Mobile / tablet drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <button
+            type="button"
+            className="animate-fade-in absolute inset-0 h-full w-full cursor-default bg-black/70 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close menu"
+            tabIndex={-1}
+          />
+          <div
+            id="mobile-drawer"
+            ref={drawerRef}
+            className="animate-slide-in-right absolute inset-y-0 right-0 flex w-[86%] max-w-sm flex-col overflow-y-auto border-l border-line bg-canvas pb-10"
+          >
+            <div className="flex h-16 flex-shrink-0 items-center justify-between px-5">
+              <Logo onClick={() => setDrawerOpen(false)} />
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="btn btn-ghost h-10 w-10 px-0 text-white"
+                aria-label="Close menu"
+              >
+                <X className="h-6 w-6" aria-hidden="true" />
+              </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Link
-                href="/movies?language=bn"
-                onClick={handleNavClick}
-                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
-              >
-                Bangla
-              </Link>
-              <Link
-                href="/movies?language=hi"
-                onClick={handleNavClick}
-                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
-              >
-                Hindi / Bollywood
-              </Link>
-              <Link
-                href="/movies?language=south"
-                onClick={handleNavClick}
-                className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-amber-400"
-              >
-                South Indian
-              </Link>
+
+            <div className="px-5">
+              <SearchBox onNavigate={() => setDrawerOpen(false)} />
+            </div>
+
+            <nav aria-label="Main" className="mt-4 px-3">
+              <ul>
+                {NAV_LINKS.map((link) => {
+                  const active = isActive(link.href);
+                  return (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        onClick={() => setDrawerOpen(false)}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center justify-between rounded-md px-3 py-3 text-base transition-colors ${
+                          active
+                            ? "bg-white/[0.06] font-semibold text-white"
+                            : "text-white/80 hover:bg-white/[0.04] hover:text-white"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          {active && <span className="h-5 w-1 rounded-full bg-accent" aria-hidden="true" />}
+                          {link.name}
+                          {link.href === "/live-tv" && (
+                            <span className="rounded bg-accent px-1.5 py-px text-[10px] font-bold uppercase text-white">
+                              Live
+                            </span>
+                          )}
+                        </span>
+                        {link.href === "/watchlist" && listCount > 0 && (
+                          <span className="text-sm text-fg-muted">{listCount}</span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+
+            <div className="mt-6 border-t border-line px-5 pt-5">
+              <p className="eyebrow mb-3">Regional</p>
+              <div className="flex flex-wrap gap-2">
+                {REGIONAL_LINKS.map((l) => (
+                  <Link key={l.href} href={l.href} onClick={() => setDrawerOpen(false)} className="chip">
+                    {l.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-line px-5 pt-5">
+              <p className="eyebrow mb-3">Genres</p>
+              <div className="flex flex-wrap gap-2">
+                {GENRES.map((g) => (
+                  <Link
+                    key={g.id}
+                    href={`/genre/${g.slug}`}
+                    onClick={() => setDrawerOpen(false)}
+                    aria-current={pathname === `/genre/${g.slug}` ? "page" : undefined}
+                    className="chip"
+                  >
+                    {g.name}
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </div>

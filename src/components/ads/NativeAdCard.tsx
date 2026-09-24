@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { isPlacementActive, getAdConfig } from "@/lib/ads/adConfig";
 import { trackAdEvent } from "@/lib/ads/adAnalytics";
 import { AdProviderRenderer } from "@/lib/ads/providers";
@@ -16,7 +16,8 @@ interface NativeAdCardProps {
  */
 export function NativeAdCard({ className = "" }: NativeAdCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const active = isPlacementActive("catalog-in-feed");
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const active = isPlacementActive("catalog-in-feed") && !isCollapsed;
   const config = getAdConfig();
 
   useEffect(() => {
@@ -37,13 +38,13 @@ export function NativeAdCard({ className = "" }: NativeAdCardProps) {
       data-ad-placement="catalog-in-feed"
     >
       {/* 2:3 Aspect ratio container matching MediaCard */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-dashed border-zinc-800 bg-zinc-950/60 p-4 shadow-md flex flex-col justify-between transition-all duration-300 group-hover:border-zinc-700">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-dashed border-line bg-surface/60 p-4 shadow-md flex flex-col justify-between transition-all duration-300 group-hover:border-line-strong">
         {/* Top Badges */}
         <div className="relative z-10 flex items-center justify-between">
-          <span className="rounded-md bg-zinc-800/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-zinc-400">
+          <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-fg-muted">
             Sponsored
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-600">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-fg-subtle">
             Ad
           </span>
         </div>
@@ -54,26 +55,14 @@ export function NativeAdCard({ className = "" }: NativeAdCardProps) {
             placement="catalog-in-feed"
             provider={config.provider}
             placeholderMode={config.placeholderMode}
+            onUnfilled={() => setIsCollapsed(true)}
           />
         </div>
 
-        {/* Bottom disclosure */}
-        <div className="relative z-10 w-full pt-2 text-center">
-          <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
-            In-Feed Display
-          </span>
-        </div>
       </div>
 
-      {/* Meta text beneath card */}
-      <div className="mt-2.5 px-0.5">
-        <h3 className="text-xs font-bold text-zinc-400 truncate">
-          Advertisement
-        </h3>
-        <p className="text-[11px] text-zinc-600 font-medium">
-          Sponsored Space
-        </p>
-      </div>
+      {/* Meta text beneath card, aligned with MediaCard */}
+      <p className="mt-2 px-0.5 text-[13px] font-medium text-fg-subtle sm:text-sm">Advertisement</p>
     </div>
   );
 }

@@ -55,6 +55,32 @@ export function getGenreBySlug(slug: string): Genre | undefined {
   return ALL_GENRES.find((g) => g.slug.toLowerCase() === slug.toLowerCase());
 }
 
+/**
+ * TMDB uses different genre ids for movies and TV (e.g. Action is 28 for
+ * movies but TV only has "Action & Adventure" 10759). Maps a genre page slug to
+ * the closest id on each side; `undefined` means that side has no equivalent.
+ */
+const CROSS_GENRE_MAP: Record<string, { movie?: number; tv?: number }> = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  "action-adventure": { movie: 28, tv: 10759 },
+  "sci-fi": { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  "sci-fi-fantasy": { movie: 878, tv: 10765 },
+  war: { movie: 10752, tv: 10768 },
+  "war-politics": { movie: 10752, tv: 10768 },
+  kids: { movie: 10751, tv: 10762 },
+};
+
+export function getGenreIdsForSlug(slug: string): { movie?: number; tv?: number } {
+  const key = slug.toLowerCase();
+  if (CROSS_GENRE_MAP[key]) return CROSS_GENRE_MAP[key];
+  return {
+    movie: MOVIE_GENRES.find((g) => g.slug === key)?.id,
+    tv: TV_GENRES.find((g) => g.slug === key)?.id,
+  };
+}
+
 export { slugify } from "@/lib/utils/formatters";
 
 

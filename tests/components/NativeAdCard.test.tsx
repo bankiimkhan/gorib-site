@@ -36,7 +36,6 @@ describe("NativeAdCard Component", () => {
     expect(container.firstChild).not.toBeNull();
     expect(container.textContent).toContain("Sponsored");
     expect(container.textContent).toContain("Advertisement");
-    expect(container.textContent).toContain("In-Feed Display");
 
     const slot = container.querySelector('[data-ad-placement="catalog-in-feed"]');
     expect(slot).not.toBeNull();
