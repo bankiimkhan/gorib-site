@@ -47,7 +47,7 @@ export function LiveTVClient({
     category: string;
   }>({ country: "all", category: "all" });
   const [copied, setCopied] = useState<boolean>(false);
-  const [useProxy, setUseProxy] = useState<boolean>(false);
+  const [sourceIndex, setSourceIndex] = useState<number>(0);
 
   const isFirstMount = useRef(true);
   const { favorites, isFavorite, toggleFavorite } = useLiveTVFavorites();
@@ -132,7 +132,7 @@ export function LiveTVClient({
   // Handle selecting a channel
   const handleSelectChannel = (channel: IPTVChannel) => {
     setActiveChannel(channel);
-    setUseProxy(false);
+    setSourceIndex(0);
 
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -193,15 +193,6 @@ export function LiveTVClient({
     });
   };
 
-  // Stream URL: direct or proxied
-  const streamUrl = useMemo(() => {
-    if (!activeChannel) return "";
-    if (useProxy) {
-      return `/api/iptv/proxy?url=${encodeURIComponent(activeChannel.url)}`;
-    }
-    return activeChannel.url;
-  }, [activeChannel, useProxy]);
-
   const playerSources: StreamSource[] = useMemo(() => {
     if (!activeChannel) return [];
     let q: "1080p" | "720p" | "480p" | "360p" | "auto" = "auto";
@@ -213,15 +204,20 @@ export function LiveTVClient({
       else if (lower.includes("360")) q = "360p";
     }
 
-    return [
-      {
-        url: streamUrl,
-        format: "hls" as const,
-        quality: q,
-        serverName: useProxy ? "Proxy" : "Direct",
-      },
-    ];
-  }, [activeChannel, streamUrl, useProxy]);
+    const proxied: StreamSource = {
+      url: `/api/iptv/proxy?url=${encodeURIComponent(activeChannel.url)}`,
+      format: "hls",
+      quality: q,
+      serverName: "Proxy",
+    };
+    // An https page can't load http:// streams (mixed content), so those go straight to the proxy.
+    // Otherwise try direct first; the player falls back to the proxy if it fails.
+    if (activeChannel.url.startsWith("http://")) return [proxied];
+    return [{ url: activeChannel.url, format: "hls", quality: q, serverName: "Direct" }, proxied];
+  }, [activeChannel]);
+
+  const activeSourceIndex = Math.min(sourceIndex, playerSources.length - 1);
+  const useProxy = playerSources[activeSourceIndex]?.serverName === "Proxy";
 
   // Popular Country pills
   const popularCountryPills = [
@@ -238,7 +234,14 @@ export function LiveTVClient({
     <div className="pb-20 pt-16 lg:pt-[68px]">
       {activeChannel && (
         <div className="mx-auto w-full max-w-[1600px] sm:px-6 sm:pt-4 lg:px-10">
-          <VideoPlayer key={streamUrl} title={activeChannel.name} sources={playerSources} isLive={true} />
+          <VideoPlayer
+            key={activeChannel.id}
+            title={activeChannel.name}
+            sources={playerSources}
+            activeSourceIndex={activeSourceIndex}
+            onSourceChange={setSourceIndex}
+            isLive={true}
+          />
         </div>
       )}
 
@@ -296,7 +299,8 @@ export function LiveTVClient({
               </button>
               <button
                 type="button"
-                onClick={() => setUseProxy((prev) => !prev)}
+                onClick={() => setSourceIndex(useProxy ? 0 : playerSources.length - 1)}
+                disabled={playerSources.length < 2}
                 aria-pressed={useProxy}
                 className="btn btn-ghost btn-sm"
                 title="Route the stream through our proxy if it won't load directly"

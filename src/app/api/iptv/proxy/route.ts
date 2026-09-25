@@ -34,34 +34,35 @@ export async function GET(req: NextRequest) {
 
     const contentType = response.headers.get("content-type") || "application/octet-stream";
 
-    // If it's an M3U8 playlist, rewrite relative URLs so the browser can resolve segments correctly
+    // If it's an M3U8 playlist, route every URI it references back through this proxy.
+    // Otherwise variant playlists, segments and keys load straight from the origin and hit
+    // the same CORS / mixed-content failures the proxy exists to avoid.
     if (
       contentType.includes("mpegurl") ||
       contentType.includes("m3u") ||
-      targetUrl.includes(".m3u8") ||
-      targetUrl.includes(".m3u")
+      /\.m3u8?$/i.test(parsedUrl.pathname)
     ) {
       const playlistText = await response.text();
-      const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
+      // Resolve against the final URL: many streams redirect to a CDN host.
+      const baseUrl = response.url || targetUrl;
+      const proxify = (uri: string) => {
+        try {
+          return `/api/iptv/proxy?url=${encodeURIComponent(new URL(uri, baseUrl).toString())}`;
+        } catch {
+          return uri;
+        }
+      };
 
-      // Process lines in the playlist
       const rewrittenLines = playlistText.split(/\r?\n/).map((line) => {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) {
+        if (!trimmed) {
           return line;
         }
-
-        // Relative URL
-        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-          try {
-            const absoluteUrl = new URL(trimmed, baseUrl).toString();
-            return absoluteUrl;
-          } catch {
-            return line;
-          }
+        // Tags such as #EXT-X-KEY, #EXT-X-MEDIA and #EXT-X-MAP carry URIs in attributes.
+        if (trimmed.startsWith("#")) {
+          return line.replace(/URI="([^"]+)"/g, (_, uri: string) => `URI="${proxify(uri)}"`);
         }
-
-        return line;
+        return proxify(trimmed);
       });
 
       const rewrittenPlaylist = rewrittenLines.join("\n");

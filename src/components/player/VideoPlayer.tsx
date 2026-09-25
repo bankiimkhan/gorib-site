@@ -207,6 +207,16 @@ export function VideoPlayer({
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
 
+  // A dead live source falls through to the next one (e.g. Direct -> Proxy) before showing an error.
+  const failSource = (message: string) => {
+    if (isLive && activeSourceIndex < sources.length - 1) {
+      handleSelectSource(activeSourceIndex + 1);
+      return;
+    }
+    setHasError(true);
+    setErrorMessage(message);
+  };
+
   // Video initialization
   useEffect(() => {
     const video = videoRef.current;
@@ -214,6 +224,7 @@ export function VideoPlayer({
 
     setIsBuffering(true);
     setHasError(false);
+    let networkRecoveries = 0;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -297,15 +308,24 @@ export function VideoPlayer({
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                hls.startLoad();
+                // Unbounded retries leave a dead stream spinning forever, and startLoad()
+                // can't recover a manifest that never loaded, so that fails straight away.
+                if (hls.levels.length > 0 && networkRecoveries < 3) {
+                  networkRecoveries++;
+                  hls.startLoad();
+                  break;
+                }
+                hls.destroy();
+                hlsRef.current = null;
+                failSource("This stream isn't responding.");
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 hls.recoverMediaError();
                 break;
               default:
                 hls.destroy();
-                setHasError(true);
-                setErrorMessage("This server couldn't play the stream.");
+                hlsRef.current = null;
+                failSource("This server couldn't play the stream.");
                 break;
             }
           }
@@ -356,12 +376,25 @@ export function VideoPlayer({
     if (!video) return;
     setDuration(video.duration);
     setIsBuffering(false);
+    autoplayLive();
   };
 
   const handleVideoError = () => {
     console.error("[Player] Video error on", currentSource?.url);
-    setHasError(true);
-    setErrorMessage("This server couldn't load the video.");
+    failSource("This server couldn't load the video.");
+  };
+
+  // Live channels should start on selection. Browsers may refuse unmuted
+  // autoplay, so fall back to muted playback rather than a frozen frame.
+  const autoplayLive = () => {
+    const video = videoRef.current;
+    if (!video || !isLive || !video.paused) return;
+    video.play().catch((err: unknown) => {
+      if (!(err instanceof DOMException) || err.name !== "NotAllowedError") return;
+      video.muted = true;
+      setIsMuted(true);
+      video.play().catch(() => {});
+    });
   };
 
   const togglePlay = useCallback(() => {
