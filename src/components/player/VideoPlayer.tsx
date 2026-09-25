@@ -607,7 +607,12 @@ export function VideoPlayer({
 
   if (isEmbed && currentSource) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden bg-black sm:rounded-lg">
+      <div
+        ref={containerRef}
+        className={`group relative aspect-video w-full overflow-hidden bg-black ${
+          isFullscreen ? "h-screen w-screen" : "sm:rounded-lg"
+        }`}
+      >
         <iframe
           key={currentSource.url}
           src={currentSource.url}
@@ -617,6 +622,15 @@ export function VideoPlayer({
           referrerPolicy="origin"
           className="h-full w-full border-0"
         />
+        {/* Some embeds (e.g. MultiEmbed) ship a broken fullscreen button, so fullscreen our wrapper instead. */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+          className="absolute right-3 top-3 z-10 rounded-md bg-black/60 p-2 text-white opacity-0 transition-opacity hover:bg-black/80 focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+        >
+          {isFullscreen ? <Minimize className="h-5 w-5" aria-hidden="true" /> : <Maximize className="h-5 w-5" aria-hidden="true" />}
+        </button>
       </div>
     );
   }
