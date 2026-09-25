@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowUp } from "lucide-react";
 import { Logo } from "./Logo";
+import { HEARTBEAT_INTERVAL_MS } from "@/lib/presence/tracker";
 
 const FOOTER_COLUMNS = [
   {
@@ -44,22 +45,12 @@ export function Footer() {
   const [totalVisitors, setTotalVisitors] = useState<number | null>(null);
 
   useEffect(() => {
-    // Generate or retrieve persistent session ID for this browser tab
-    let sessionId: string;
-    try {
-      const stored = sessionStorage.getItem("gorib_viewer_session");
-      if (stored) {
-        sessionId = stored;
-      } else {
-        sessionId =
-          typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        sessionStorage.setItem("gorib_viewer_session", sessionId);
-      }
-    } catch {
-      sessionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    }
+    // Fresh presence ID per page load. Not kept in sessionStorage: duplicating a tab copies
+    // sessionStorage, which made two open tabs count as one viewer.
+    const sessionId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     // Persistent per-browser ID so each visitor is counted once in the all-time total
     let visitorId: string | undefined;
@@ -107,15 +98,19 @@ export function Footer() {
     // Initial ping on mount
     pingPresence("ping");
 
-    // Ping every 15 seconds while user is actively browsing
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        pingPresence("ping");
-      }
-    }, 15000);
+    // Keep pinging in background tabs too (e.g. Live TV playing in another tab). Browsers
+    // throttle hidden-tab timers to about once a minute; the server timeout allows for that.
+    const interval = setInterval(() => pingPresence("ping"), HEARTBEAT_INTERVAL_MS);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        pingPresence("ping");
+      }
+    };
+
+    // pagehide sent "leave"; a page restored from the back/forward cache must rejoin.
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
         pingPresence("ping");
       }
     };
@@ -130,6 +125,7 @@ export function Footer() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handleBeforeUnload);
+    window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
@@ -137,6 +133,7 @@ export function Footer() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handleBeforeUnload);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       handleBeforeUnload();
     };

@@ -23,7 +23,7 @@ This application is configured for deployment to **Cloudflare Workers** using `@
 
 ## 2. Configuration Files
 
-- **[`wrangler.jsonc`](file:///g:/Main2/gorib-site/wrangler.jsonc)**: Declares the Worker entrypoint (`.open-next/worker.js`), static assets directory (`.open-next/assets`), `nodejs_compat` flag, and environment variables.
+- **[`wrangler.jsonc`](file:///g:/Main2/gorib-site/wrangler.jsonc)**: Declares the Worker entrypoint (`custom-worker.mjs`, which wraps the generated `.open-next/worker.js` and exports the `PresenceCounter` Durable Object behind the live viewer count), static assets directory (`.open-next/assets`), `nodejs_compat` flag, and environment variables.
 - **[`open-next.config.ts`](file:///g:/Main2/gorib-site/open-next.config.ts)**: Configures the OpenNext adapter for Cloudflare Workers.
 - **[`next.config.ts`](file:///g:/Main2/gorib-site/next.config.ts)**: Configured with `images.unoptimized: true` to bypass native C++ binary dependencies (`sharp`) in the V8 worker environment.
 - **[`.dev.vars.example`](file:///g:/Main2/gorib-site/.dev.vars.example)**: Template for local secrets during `wrangler dev`.

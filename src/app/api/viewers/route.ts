@@ -1,34 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { PresenceTracker, type PresenceAction } from "@/lib/presence/tracker";
 
 export const dynamic = "force-dynamic";
 
-// In-memory sliding window for active visitor sessions
-// Maps sessionId -> last active timestamp (ms)
-const activeSessions = new Map<string, number>();
-const SESSION_TIMEOUT_MS = 35_000; // 35 seconds inactivity window
+// "Watching now" lives in the PresenceCounter Durable Object (binding PRESENCE) when
+// deployed, so every Worker isolate shares one count. This in-process tracker is the
+// fallback for `next dev` and tests, where there is a single process anyway.
+const localPresence = new PresenceTracker();
 
 // All-time unique visitors. Persisted in D1 (binding VISITORS_DB) when deployed;
 // falls back to process memory in local dev and tests where no binding exists.
 const memoryVisitors = new Set<string>();
 
-type D1Result = { meta?: { changes?: number } };
 type D1Statement = {
   bind(...values: unknown[]): D1Statement;
-  run(): Promise<D1Result>;
   first<T>(): Promise<T | null>;
 };
-type D1Like = { prepare(query: string): D1Statement; exec(query: string): Promise<unknown> };
+type D1Like = {
+  prepare(query: string): D1Statement;
+  exec(query: string): Promise<unknown>;
+  batch<T = unknown>(statements: D1Statement[]): Promise<{ results: T[] }[]>;
+};
+
+type DurableObjectStubLike = { fetch(url: string, init?: RequestInit): Promise<Response> };
+type DurableObjectNamespaceLike = {
+  idFromName(name: string): unknown;
+  get(id: unknown): DurableObjectStubLike;
+};
+
+type WorkerEnv = { VISITORS_DB?: D1Like; PRESENCE?: DurableObjectNamespaceLike };
 
 let schemaReady: Promise<unknown> | null = null;
 
-function getVisitorsDb(): D1Like | null {
+function getWorkerEnv(): WorkerEnv {
   try {
-    const env = getCloudflareContext().env as unknown as { VISITORS_DB?: D1Like };
-    return env.VISITORS_DB ?? null;
+    return getCloudflareContext().env as unknown as WorkerEnv;
   } catch {
-    return null;
+    return {};
   }
+}
+
+/** Reports a heartbeat/leave to the shared presence counter and returns the live count. */
+async function updatePresence(sessionId: unknown, action: PresenceAction | null): Promise<number> {
+  const namespace = getWorkerEnv().PRESENCE;
+  if (!namespace) {
+    return action ? localPresence.update(sessionId, action) : localPresence.count();
+  }
+
+  try {
+    const stub = namespace.get(namespace.idFromName("global"));
+    const res = await stub.fetch("https://presence/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action ? { sessionId, action } : {}),
+    });
+    const data = (await res.json()) as { count?: unknown };
+    if (typeof data.count === "number") return data.count;
+  } catch (err) {
+    console.error("[viewers] presence counter unavailable:", err);
+  }
+  // Never fall back to the per-isolate tracker here: it would show a misleading partial count.
+  return 1;
 }
 
 function ensureSchema(db: D1Like): Promise<unknown> {
@@ -49,11 +82,12 @@ function ensureSchema(db: D1Like): Promise<unknown> {
 }
 
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const SELECT_TOTAL = "SELECT value FROM stats WHERE name = 'total_visitors'";
 
 /** Records a visitor (once per id) and returns the all-time unique visitor count. */
 export async function recordVisitor(visitorId?: string): Promise<number | null> {
   const validId = visitorId && VISITOR_ID_PATTERN.test(visitorId) ? visitorId : null;
-  const db = getVisitorsDb();
+  const db = getWorkerEnv().VISITORS_DB;
 
   if (!db) {
     if (validId) memoryVisitors.add(validId);
@@ -62,34 +96,27 @@ export async function recordVisitor(visitorId?: string): Promise<number | null> 
 
   try {
     await ensureSchema(db);
-    if (validId) {
-      const inserted = await db
-        .prepare("INSERT OR IGNORE INTO visitors (id, first_seen) VALUES (?, ?)")
-        .bind(validId, Date.now())
-        .run();
-      if (inserted.meta?.changes) {
-        await db.prepare("UPDATE stats SET value = value + 1 WHERE name = 'total_visitors'").run();
-      }
+    if (!validId) {
+      const row = await db.prepare(SELECT_TOTAL).first<{ value: number }>();
+      return row?.value ?? null;
     }
-    const row = await db.prepare("SELECT value FROM stats WHERE name = 'total_visitors'").first<{ value: number }>();
-    return row?.value ?? null;
-  } catch {
+    // One batch = one transaction: the counter only moves when the insert added a row
+    // (changes() is 0 for an ignored duplicate), and can't drift if a later step fails.
+    const results = await db.batch<{ value: number }>([
+      db.prepare("INSERT OR IGNORE INTO visitors (id, first_seen) VALUES (?, ?)").bind(validId, Date.now()),
+      db.prepare("UPDATE stats SET value = value + changes() WHERE name = 'total_visitors'"),
+      db.prepare(SELECT_TOTAL),
+    ]);
+    return results[2]?.results[0]?.value ?? null;
+  } catch (err) {
+    console.error("[viewers] visitor total unavailable:", err);
     return null;
   }
 }
 
-export function cleanupAndCount(): number {
-  const now = Date.now();
-  for (const [id, timestamp] of activeSessions.entries()) {
-    if (now - timestamp > SESSION_TIMEOUT_MS) {
-      activeSessions.delete(id);
-    }
-  }
-  return activeSessions.size;
-}
-
+/** Test helper: clears the in-process fallbacks. */
 export function resetActiveSessions(): void {
-  activeSessions.clear();
+  localPresence.clear();
   memoryVisitors.clear();
 }
 
@@ -107,8 +134,7 @@ function viewersResponse(count: number, total: number | null) {
 }
 
 export async function GET() {
-  const count = cleanupAndCount();
-  const total = await recordVisitor();
+  const [count, total] = await Promise.all([updatePresence(undefined, null), recordVisitor()]);
   return viewersResponse(count, total);
 }
 
@@ -116,28 +142,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const { sessionId, visitorId, action } = (body || {}) as {
-      sessionId?: string;
-      visitorId?: string;
-      action?: string;
+      sessionId?: unknown;
+      visitorId?: unknown;
+      action?: unknown;
     };
-    const now = Date.now();
+    const presenceAction: PresenceAction = action === "leave" ? "leave" : "ping";
 
-    if (sessionId && typeof sessionId === "string") {
-      if (action === "leave") {
-        activeSessions.delete(sessionId);
-      } else {
-        activeSessions.set(sessionId, now);
-      }
+    if (presenceAction === "leave") {
+      return viewersResponse(await updatePresence(sessionId, "leave"), null);
     }
 
-    const count = cleanupAndCount();
-    if (action === "leave") {
-      return viewersResponse(count, null);
-    }
-
-    const total = await recordVisitor(typeof visitorId === "string" ? visitorId : undefined);
+    const [count, total] = await Promise.all([
+      updatePresence(sessionId, "ping"),
+      recordVisitor(typeof visitorId === "string" ? visitorId : undefined),
+    ]);
     return viewersResponse(count, total);
   } catch {
-    return NextResponse.json({ count: 1 });
+    return NextResponse.json({ count: 1 }, { headers: NO_CACHE_HEADERS });
   }
 }

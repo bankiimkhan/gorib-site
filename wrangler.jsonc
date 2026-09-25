@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gorib-site",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.mjs",
   "compatibility_date": "2026-03-01",
   "compatibility_flags": [
     "nodejs_compat"
@@ -10,6 +10,21 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Site-wide "watching now" count for /api/viewers (src/worker/PresenceCounter.ts).
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PRESENCE",
+        "class_name": "PresenceCounter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-presence",
+      "new_sqlite_classes": ["PresenceCounter"]
+    }
+  ],
   // All-time visitor counter for /api/viewers. Tables are created on first request.
   "d1_databases": [
     {
