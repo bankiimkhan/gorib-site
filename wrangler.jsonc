@@ -10,14 +10,12 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // All-time visitor counter for /api/viewers. Create with:
-  //   pnpm wrangler d1 create gorib-visitors
-  // then paste the returned database_id below. Tables are created on first request.
+  // All-time visitor counter for /api/viewers. Tables are created on first request.
   "d1_databases": [
     {
       "binding": "VISITORS_DB",
       "database_name": "gorib-visitors",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "ac3f94aa-0f2e-4a94-97c3-717e2010c8fc"
     }
   ],
   "vars": {

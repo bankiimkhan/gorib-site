@@ -77,6 +77,8 @@ export function Footer() {
     }
 
     let isMounted = true;
+    // Only the first successful ping needs to register the visitor; later pings just read the total
+    let visitorRecorded = false;
 
     // Heartbeat function to report real presence and receive live visitor count
     const pingPresence = async (action: "ping" | "leave" = "ping") => {
@@ -84,7 +86,7 @@ export function Footer() {
         const res = await fetch("/api/viewers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, visitorId, action }),
+          body: JSON.stringify({ sessionId, visitorId: visitorRecorded ? undefined : visitorId, action }),
           cache: "no-store",
         });
         if (res.ok && isMounted && action === "ping") {
@@ -93,6 +95,7 @@ export function Footer() {
             setViewers(data.count);
           }
           if (typeof data.total === "number") {
+            visitorRecorded = true;
             setTotalVisitors(data.total);
           }
         }
