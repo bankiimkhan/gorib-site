@@ -41,6 +41,7 @@ const FOOTER_COLUMNS = [
 
 export function Footer() {
   const [viewers, setViewers] = useState<number>(1);
+  const [totalVisitors, setTotalVisitors] = useState<number | null>(null);
 
   useEffect(() => {
     // Generate or retrieve persistent session ID for this browser tab
@@ -60,6 +61,21 @@ export function Footer() {
       sessionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     }
 
+    // Persistent per-browser ID so each visitor is counted once in the all-time total
+    let visitorId: string | undefined;
+    try {
+      visitorId = localStorage.getItem("gorib_visitor_id") ?? undefined;
+      if (!visitorId) {
+        visitorId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `v_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        localStorage.setItem("gorib_visitor_id", visitorId);
+      }
+    } catch {
+      // Storage blocked: still show the total, just don't count this browser
+    }
+
     let isMounted = true;
 
     // Heartbeat function to report real presence and receive live visitor count
@@ -68,13 +84,16 @@ export function Footer() {
         const res = await fetch("/api/viewers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, action }),
+          body: JSON.stringify({ sessionId, visitorId, action }),
           cache: "no-store",
         });
         if (res.ok && isMounted && action === "ping") {
-          const data = (await res.json()) as { count?: number };
+          const data = (await res.json()) as { count?: number; total?: number };
           if (typeof data.count === "number") {
             setViewers(data.count);
+          }
+          if (typeof data.total === "number") {
+            setTotalVisitors(data.total);
           }
         }
       } catch {
@@ -161,7 +180,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col-reverse items-start justify-between gap-4 border-t border-line pt-6 text-xs sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} gorib.lol</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span className="inline-flex items-center gap-2" aria-live="polite">
               <span className="relative flex h-2 w-2" aria-hidden="true">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
@@ -171,6 +190,12 @@ export function Footer() {
                 <span className="font-semibold tabular-nums text-fg-muted">{viewers.toLocaleString()}</span> watching now
               </span>
             </span>
+            {totalVisitors !== null && (
+              <span>
+                <span className="font-semibold tabular-nums text-fg-muted">{totalVisitors.toLocaleString()}</span> all-time
+                visitors
+              </span>
+            )}
             <button
               type="button"
               onClick={scrollToTop}

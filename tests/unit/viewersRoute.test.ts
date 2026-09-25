@@ -67,6 +67,41 @@ describe("Real-time Viewers API (/api/viewers)", () => {
     expect(dataLeave.count).toBe(1);
   });
 
+  it("counts each visitor once in the all-time total", async () => {
+    const ping = (sessionId: string, visitorId: string) =>
+      POST(
+        new NextRequest("http://localhost:3000/api/viewers", {
+          method: "POST",
+          body: JSON.stringify({ sessionId, visitorId, action: "ping" }),
+        })
+      );
+
+    await ping("tab-1", "visitor-aaaa");
+    await ping("tab-2", "visitor-aaaa");
+    const res = await ping("tab-3", "visitor-bbbb");
+    const data = await res.json();
+
+    expect(data.total).toBe(2);
+  });
+
+  it("keeps the all-time total after visitors leave", async () => {
+    await POST(
+      new NextRequest("http://localhost:3000/api/viewers", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "tab-1", visitorId: "visitor-aaaa", action: "ping" }),
+      })
+    );
+    await POST(
+      new NextRequest("http://localhost:3000/api/viewers", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "tab-1", action: "leave" }),
+      })
+    );
+
+    const data = await (await GET()).json();
+    expect(data.total).toBe(1);
+  });
+
   it("sets no-cache headers to ensure live edge delivery", async () => {
     const res = await GET();
     expect(res.headers.get("Cache-Control")).toContain("no-store");
