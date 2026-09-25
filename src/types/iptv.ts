@@ -14,7 +14,6 @@ export interface IPTVChannel {
 export interface IPTVCategory {
   id: string;
   name: string;
-  icon?: string;
 }
 
 export interface IPTVCountry {

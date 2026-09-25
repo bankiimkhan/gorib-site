@@ -5,18 +5,18 @@ const IPTV_BASE_URL = "https://iptv-org.github.io/iptv";
 
 export const IPTV_CATEGORIES: IPTVCategory[] = [
   { id: "all", name: "All Channels" },
-  { id: "news", name: "News", icon: "📰" },
-  { id: "sports", name: "Sports", icon: "⚽" },
-  { id: "movies", name: "Movies", icon: "🎬" },
-  { id: "entertainment", name: "Entertainment", icon: "🍿" },
-  { id: "kids", name: "Kids & Animation", icon: "🧸" },
-  { id: "music", name: "Music", icon: "🎵" },
-  { id: "documentary", name: "Documentary", icon: "🌍" },
-  { id: "series", name: "TV Series", icon: "📺" },
-  { id: "comedy", name: "Comedy", icon: "😂" },
-  { id: "lifestyle", name: "Lifestyle", icon: "✨" },
-  { id: "religious", name: "Religious", icon: "🕌" },
-  { id: "education", name: "Education", icon: "📚" },
+  { id: "news", name: "News" },
+  { id: "sports", name: "Sports" },
+  { id: "movies", name: "Movies" },
+  { id: "entertainment", name: "Entertainment" },
+  { id: "kids", name: "Kids & Animation" },
+  { id: "music", name: "Music" },
+  { id: "documentary", name: "Documentary" },
+  { id: "series", name: "TV Series" },
+  { id: "comedy", name: "Comedy" },
+  { id: "lifestyle", name: "Lifestyle" },
+  { id: "religious", name: "Religious" },
+  { id: "education", name: "Education" },
 ];
 
 export const IPTV_COUNTRIES: IPTVCountry[] = [
