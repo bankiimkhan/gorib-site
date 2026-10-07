@@ -102,6 +102,7 @@ export function WatchTVClient({ tvShow, season, episode, streamResult, seasonDat
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleEnded}
           nextEpisodeUrl={nextEpisodeUrl}
+          mediaType="tv"
         />
       </div>
 

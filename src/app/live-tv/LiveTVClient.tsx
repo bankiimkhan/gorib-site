@@ -272,6 +272,7 @@ export function LiveTVClient({
               activeSourceIndex={activeSourceIndex}
               onSourceChange={setSourceIndex}
               isLive={true}
+              mediaType="live"
             />
           )}
 

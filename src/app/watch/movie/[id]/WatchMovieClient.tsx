@@ -58,6 +58,7 @@ export function WatchMovieClient({ movie, streamResult }: WatchMovieClientProps)
           activeSourceIndex={activeSourceIndex}
           onSourceChange={setActiveSourceIndex}
           onTimeUpdate={handleTimeUpdate}
+          mediaType="movie"
         />
       </div>
 

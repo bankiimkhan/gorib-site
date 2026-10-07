@@ -31,6 +31,7 @@ import {
   formatAudioLabel,
 } from "@/lib/utils/languages";
 import { useLanguagePreferences } from "@/lib/hooks/useLanguagePreferences";
+import { sendAnalyticsWatch } from "@/lib/analytics/client";
 
 interface VideoPlayerProps {
   title: string;
@@ -43,6 +44,7 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   nextEpisodeUrl?: string;
   isLive?: boolean;
+  mediaType?: "movie" | "tv" | "live";
 }
 
 /** Elements that must keep their own Space/Enter behaviour. */
@@ -115,6 +117,7 @@ export function VideoPlayer({
   onEnded,
   nextEpisodeUrl,
   isLive = false,
+  mediaType,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -129,6 +132,10 @@ export function VideoPlayer({
 
   const currentSource: StreamSource | undefined = sources[activeSourceIndex] || sources[0];
   const isEmbed = currentSource?.format === "iframe";
+
+  // Watch analytics reporting
+  const resolvedMediaType: "movie" | "tv" | "live" =
+    mediaType || (isLive ? "live" : title.includes("· S") || title.includes("Episode") ? "tv" : "movie");
 
   // Bumped by "Retry" to reload the same source.
   const [reloadKey, setReloadKey] = useState(0);
@@ -204,6 +211,18 @@ export function VideoPlayer({
       video.textTracks[i].mode = i === activeSubtitleIndex ? "showing" : "disabled";
     }
   }, [activeSubtitleIndex, availableSubtitles]);
+
+  // Periodic watch progress reporter for analytics
+  useEffect(() => {
+    if (!isPlaying && !isEmbed) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      sendAnalyticsWatch(15, resolvedMediaType, title);
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, isEmbed, resolvedMediaType, title]);
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
 
