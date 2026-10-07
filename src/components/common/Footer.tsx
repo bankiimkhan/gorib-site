@@ -2,21 +2,20 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowUp, Activity } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { Logo } from "./Logo";
 
 const FOOTER_COLUMNS = [
   {
     title: "Browse",
-    links: [
-      { label: "Home", href: "/" },
-      { label: "Movies", href: "/movies" },
-      { label: "TV Shows", href: "/tv" },
-      { label: "New & Popular", href: "/trending" },
-      { label: "Live TV", href: "/live-tv" },
-      { label: "My List", href: "/watchlist" },
-      { label: "Analytics", href: "/analytics" },
-    ],
+links: [
+        { label: "Home", href: "/" },
+        { label: "Movies", href: "/movies" },
+        { label: "TV Shows", href: "/tv" },
+        { label: "New & Popular", href: "/trending" },
+        { label: "Live TV", href: "/live-tv" },
+        { label: "My List", href: "/watchlist" },
+      ],
   },
   {
     title: "Regional",
@@ -83,13 +82,6 @@ export function Footer() {
         <div className="mt-12 flex flex-col-reverse items-start justify-between gap-4 border-t border-line pt-6 text-xs sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} gorib.lol</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <Link
-              href="/analytics"
-              className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
-            >
-              <Activity className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-              Analytics
-            </Link>
             <button
               type="button"
               onClick={scrollToTop}
