@@ -3,7 +3,7 @@
 import React, { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { isPlacementActive } from "@/lib/ads/adConfig";
+import { getAdConfig, isPlacementActive } from "@/lib/ads/adConfig";
 import { isPlayerRoute } from "@/lib/ads/playerRoutes";
 import { AdSlot } from "./AdSlot";
 
@@ -33,7 +33,9 @@ export function StickyBottomAd() {
   const dismissedInSession = useSyncExternalStore(noopSubscribe, readDismissed, () => true);
   const isDismissed = dismissedNow || dismissedInSession;
 
-  const active = isPlacementActive("mobile-sticky");
+  // A fixed unit gets a second, explicit feature flag in addition to the
+  // placement flag. It should be an experiment, never an incidental default.
+  const active = isPlacementActive("mobile-sticky") && getAdConfig().frequency.allowMobileSticky;
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -58,7 +60,7 @@ export function StickyBottomAd() {
 
   return (
     <aside
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-canvas/95 backdrop-blur-xl border-t border-line shadow-2xl px-3 py-1.5"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-canvas/95 backdrop-blur-xl border-t border-line shadow-2xl px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       role="complementary"
       aria-label="Mobile sticky advertisement"
       data-testid="mobile-sticky-ad"

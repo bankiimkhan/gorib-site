@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { PresenceTracker, type PresenceAction } from "@/lib/presence/tracker";
+import { ANALYTICS_SESSION_COOKIE, hasAnalyticsAccess } from "@/lib/analytics/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +134,10 @@ function viewersResponse(count: number, total: number | null) {
   );
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await hasAnalyticsAccess(req.cookies.get(ANALYTICS_SESSION_COOKIE)?.value))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_CACHE_HEADERS });
+  }
   const [count, total] = await Promise.all([updatePresence(undefined, null), recordVisitor()]);
   return viewersResponse(count, total);
 }
@@ -149,15 +153,16 @@ export async function POST(req: NextRequest) {
     const presenceAction: PresenceAction = action === "leave" ? "leave" : "ping";
 
     if (presenceAction === "leave") {
-      return viewersResponse(await updatePresence(sessionId, "leave"), null);
+      await updatePresence(sessionId, "leave");
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
     }
 
-    const [count, total] = await Promise.all([
+    await Promise.all([
       updatePresence(sessionId, "ping"),
       recordVisitor(typeof visitorId === "string" ? visitorId : undefined),
     ]);
-    return viewersResponse(count, total);
+    return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
   } catch {
-    return NextResponse.json({ count: 1 }, { headers: NO_CACHE_HEADERS });
+    return NextResponse.json({ success: false }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

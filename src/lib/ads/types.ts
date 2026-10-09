@@ -14,7 +14,6 @@ export type AdPlacement =
 
 export type AdProviderType =
   | "placeholder"
-  | "adsense"
   | "custom";
 
 export type PlaceholderMode = "debug" | "sponsor" | "minimal";
@@ -34,4 +33,18 @@ export interface AdEventData {
   metadata?: Record<string, string | number | boolean>;
 }
 
-export type AdEventType = "impression" | "viewable" | "click" | "blocked" | "error";
+/**
+ * `impression` is retained for compatibility with existing listeners. New
+ * code should distinguish a demand request, a filled slot, and a viewable
+ * creative instead of treating all three as an impression.
+ */
+export type AdEventType =
+  | "request"
+  | "filled"
+  | "viewable"
+  | "unfilled"
+  | "suppressed"
+  | "impression"
+  | "click"
+  | "blocked"
+  | "error";

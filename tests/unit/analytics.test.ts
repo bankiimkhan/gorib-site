@@ -4,11 +4,20 @@ import {
   memoryStore,
   recordPing,
   recordLeave,
+  recordStart,
   recordWatch,
   getAnalyticsSummary,
 } from "@/lib/analytics/store";
 import { GET, POST } from "@/app/api/analytics/route";
 import { NextRequest } from "next/server";
+
+const ANALYTICS_TOKEN = "test-owner-token-analytics";
+
+function analyticsOwnerRequest(url = "http://localhost:3000/api/analytics") {
+  return new NextRequest(url, {
+    headers: { cookie: `gorib_analytics_session=${ANALYTICS_TOKEN}` },
+  });
+}
 
 describe("Analytics Countries Utilities", () => {
   it("converts ISO codes to flag emojis", () => {
@@ -118,15 +127,37 @@ describe("Analytics Store", () => {
     expect(top).toBeDefined();
     expect(top?.watchMinutes).toBe(2);
   });
+
+  it("counts one verified view per title and session, not per watch heartbeat", async () => {
+    const start = {
+      visitorId: "viewer-1",
+      sessionId: "tab-1",
+      mediaType: "movie" as const,
+      title: "Test Movie",
+      mediaId: "movie:42",
+      country: "BD",
+    };
+
+    await recordStart(start);
+    await recordStart(start);
+    await recordWatch({ ...start, seconds: 15 });
+    await recordWatch({ ...start, seconds: 15 });
+
+    const summary = await getAnalyticsSummary("BD");
+    const title = summary.watchedMinutes.topTitles.find((item) => item.title === "Test Movie");
+    expect(title?.views).toBe(1);
+    expect(title?.watchMinutes).toBe(1);
+  });
 });
 
 describe("Analytics API Route (/api/analytics)", () => {
   beforeEach(() => {
     memoryStore.clear();
+    process.env.ANALYTICS_ADMIN_TOKEN = ANALYTICS_TOKEN;
   });
 
   it("returns full analytics summary on GET", async () => {
-    const req = new NextRequest("http://localhost:3000/api/analytics");
+    const req = analyticsOwnerRequest();
     const res = await GET(req);
     expect(res.status).toBe(200);
 
@@ -135,6 +166,11 @@ describe("Analytics API Route (/api/analytics)", () => {
     expect(data.repeatingUsers).toBeDefined();
     expect(data.watchedMinutes).toBeDefined();
     expect(res.headers.get("Cache-Control")).toContain("no-store");
+  });
+
+  it("hides the analytics summary from non-owners", async () => {
+    const res = await GET(new NextRequest("http://localhost:3000/api/analytics"));
+    expect(res.status).toBe(404);
   });
 
   it("processes ping on POST", async () => {
@@ -172,5 +208,25 @@ describe("Analytics API Route (/api/analytics)", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
+  });
+
+  it("processes a verified playback start on POST", async () => {
+    const req = new NextRequest("http://localhost:3000/api/analytics", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "start",
+        visitorId: "test-visitor-1",
+        sessionId: "test-session-1",
+        mediaType: "movie",
+        title: "Interstellar",
+        mediaId: "movie:157336",
+        country: "US",
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const summary = await getAnalyticsSummary("US");
+    expect(summary.watchedMinutes.topTitles.find((item) => item.title === "Interstellar")?.views).toBe(1);
   });
 });

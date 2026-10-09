@@ -6,3 +6,5 @@ TMDB_API_KEY=63bcc17f6066180c0dc10bbded74c140
 STREAMING_API_KEY=
 STREAMING_BASE_URL=
 
+# Required to open /analytics locally. Use a long random value.
+ANALYTICS_ADMIN_TOKEN=

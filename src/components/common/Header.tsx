@@ -330,15 +330,6 @@ export function Header() {
               </div>
             </div>
 
-            <div className="mt-6 border-t border-line px-5 pt-5">
-              <Link
-                href="/analytics"
-                onClick={() => setDrawerOpen(false)}
-                className="chip w-full justify-center text-fg hover:border-white"
-              >
-                Platform Analytics
-              </Link>
-            </div>
           </div>
         </div>
       )}

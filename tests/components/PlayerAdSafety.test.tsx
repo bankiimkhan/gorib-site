@@ -70,6 +70,7 @@ describe("Player ad safety", () => {
 
   it("still renders player-bottom for a display-only provider below the player", () => {
     process.env.NEXT_PUBLIC_AD_PROVIDER = "placeholder";
+    process.env.NEXT_PUBLIC_AD_PLAYER_BOTTOM = "true";
     const { container } = render(<AdSlot placement="player-bottom" priority />);
     expect(container.querySelector('[data-ad-placement="player-bottom"]')).not.toBeNull();
   });

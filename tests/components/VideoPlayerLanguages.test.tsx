@@ -113,4 +113,23 @@ describe("VideoPlayer Language & Subtitle Switching", () => {
     expect(subtitles.getByRole("button", { name: "Spanish" })).toHaveAttribute("aria-pressed", "true");
     expect(subtitles.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "false");
   });
+
+  it("offers the next episode in the player when an episode ends", () => {
+    const { container } = render(
+      <VideoPlayer
+        title="Test Series · S1:E1 Pilot"
+        sources={mockMultiTrackSources}
+        nextEpisodeUrl="/watch/tv/1?season=1&episode=2"
+        nextEpisodeLabel="Episode 2"
+      />
+    );
+
+    fireEvent.ended(container.querySelector("video")!);
+
+    expect(screen.getByText("Episode complete")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /play next episode/i })).toHaveAttribute(
+      "href",
+      "/watch/tv/1?season=1&episode=2"
+    );
+  });
 });

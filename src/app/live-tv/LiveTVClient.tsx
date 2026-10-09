@@ -273,6 +273,7 @@ export function LiveTVClient({
               onSourceChange={setSourceIndex}
               isLive={true}
               mediaType="live"
+              analyticsId={`live:${activeChannel.id}`}
             />
           )}
 

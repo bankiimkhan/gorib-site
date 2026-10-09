@@ -12,6 +12,7 @@ interface D1Statement {
   bind(...values: unknown[]): D1Statement;
   first<T>(): Promise<T | null>;
   all<T>(): Promise<{ results: T[] }>;
+  run(): Promise<{ meta?: { changes?: number } }>;
 }
 
 interface D1Like {
@@ -94,6 +95,7 @@ class MemoryAnalyticsStore {
   profiles = new Map<string, MemoryProfile>();
   countryStats = new Map<string, { visitors: number; watchSeconds: number }>();
   titles = new Map<string, MemoryTitle>();
+  titleSessions = new Set<string>();
   liveSessions = new Map<string, MemoryLiveSession>();
   stats = {
     totalVisitors: 0,
@@ -128,7 +130,7 @@ class MemoryAnalyticsStore {
     }
 
     for (const t of INITIAL_TITLES_SEED) {
-      this.titles.set(t.title, { ...t });
+      this.titles.set(t.id, { ...t });
     }
 
     const returning = Math.round(totalVis * 0.442);
@@ -147,6 +149,7 @@ class MemoryAnalyticsStore {
     this.profiles.clear();
     this.countryStats.clear();
     this.titles.clear();
+    this.titleSessions.clear();
     this.liveSessions.clear();
     this.stats = {
       totalVisitors: 0,
@@ -228,12 +231,38 @@ class MemoryAnalyticsStore {
     this.liveSessions.delete(sessionId);
   }
 
+  recordStart(params: {
+    sessionId: string;
+    mediaId: string;
+    mediaType: "movie" | "tv" | "live";
+    title: string;
+  }): boolean {
+    const sessionTitleKey = `${params.sessionId}\u0000${params.mediaId}`;
+    if (this.titleSessions.has(sessionTitleKey)) return false;
+
+    this.titleSessions.add(sessionTitleKey);
+    const existing = this.titles.get(params.mediaId);
+    if (existing) {
+      existing.views++;
+    } else {
+      this.titles.set(params.mediaId, {
+        id: params.mediaId,
+        title: params.title,
+        mediaType: params.mediaType,
+        watchSeconds: 0,
+        views: 1,
+      });
+    }
+    return true;
+  }
+
   recordWatch(params: {
     visitorId: string;
     sessionId: string;
     seconds: number;
     mediaType: "movie" | "tv" | "live";
     title: string;
+    mediaId: string;
     country: string;
   }) {
     const now = Date.now();
@@ -266,17 +295,16 @@ class MemoryAnalyticsStore {
     }
 
     if (params.title) {
-      const existing = this.titles.get(params.title);
+      const existing = this.titles.get(params.mediaId);
       if (existing) {
         existing.watchSeconds += seconds;
-        existing.views++;
       } else {
-        this.titles.set(params.title, {
-          id: `t_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        this.titles.set(params.mediaId, {
+          id: params.mediaId,
           title: params.title,
           mediaType: params.mediaType,
           watchSeconds: seconds,
-          views: 1,
+          views: 0,
         });
       }
     }
@@ -408,7 +436,8 @@ async function ensureD1Schema(db: D1Like): Promise<unknown> {
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('movie_watch_seconds', 0);\n" +
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('tv_watch_seconds', 0);\n" +
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('live_watch_seconds', 0);\n" +
-          "CREATE TABLE IF NOT EXISTS analytics_titles (id TEXT PRIMARY KEY, title TEXT NOT NULL, media_type TEXT NOT NULL, watch_seconds INTEGER NOT NULL DEFAULT 0, view_count INTEGER NOT NULL DEFAULT 1);"
+          "CREATE TABLE IF NOT EXISTS analytics_titles (id TEXT PRIMARY KEY, title TEXT NOT NULL, media_type TEXT NOT NULL, watch_seconds INTEGER NOT NULL DEFAULT 0, view_count INTEGER NOT NULL DEFAULT 0);\n" +
+          "CREATE TABLE IF NOT EXISTS analytics_title_sessions (session_id TEXT NOT NULL, title_id TEXT NOT NULL, PRIMARY KEY (session_id, title_id));"
       )
       .catch((err) => {
         d1SchemaReady = null;
@@ -486,23 +515,79 @@ export async function recordLeave(sessionId: string): Promise<void> {
   memoryStore.recordLeave(sessionId);
 }
 
+function getMediaId(params: { mediaId?: string; mediaType: "movie" | "tv" | "live"; title: string }): string {
+  return params.mediaId?.trim().slice(0, 180) || `${params.mediaType}:${params.title.trim().slice(0, 160)}`;
+}
+
+export async function recordStart(params: {
+  visitorId: string;
+  sessionId: string;
+  mediaType: "movie" | "tv" | "live";
+  title: string;
+  mediaId?: string;
+  country?: string;
+}): Promise<void> {
+  const country = (params.country || "US").toUpperCase();
+  const mediaId = getMediaId(params);
+  const title = params.title.trim().slice(0, 240) || "Unknown Title";
+
+  // A verified native-video play is the only event that creates a view.
+  await recordPing({
+    visitorId: params.visitorId,
+    sessionId: params.sessionId,
+    country,
+  });
+  const isNewStart = memoryStore.recordStart({
+    sessionId: params.sessionId,
+    mediaId,
+    mediaType: params.mediaType,
+    title,
+  });
+
+  const db = getWorkerEnv().VISITORS_DB;
+  if (!db || !isNewStart) return;
+
+  try {
+    await ensureD1Schema(db);
+    const inserted = await db
+      .prepare("INSERT OR IGNORE INTO analytics_title_sessions (session_id, title_id) VALUES (?, ?)")
+      .bind(params.sessionId, mediaId)
+      .run();
+
+    if ((inserted.meta?.changes || 0) > 0) {
+      await db
+        .prepare(
+          "INSERT INTO analytics_titles (id, title, media_type, watch_seconds, view_count) VALUES (?, ?, ?, 0, 1) ON CONFLICT(id) DO UPDATE SET view_count = view_count + 1"
+        )
+        .bind(mediaId, title, params.mediaType)
+        .run();
+    }
+  } catch (err) {
+    console.error("[analytics] D1 start record error:", err);
+  }
+}
+
 export async function recordWatch(params: {
   visitorId: string;
   sessionId: string;
   seconds: number;
   mediaType: "movie" | "tv" | "live";
   title: string;
+  mediaId?: string;
   country?: string;
 }): Promise<void> {
   const country = (params.country || "US").toUpperCase();
   const seconds = Math.max(1, Math.min(300, params.seconds));
+  const mediaId = getMediaId(params);
+  const title = params.title.trim().slice(0, 240) || "Unknown Title";
 
   memoryStore.recordWatch({
     visitorId: params.visitorId,
     sessionId: params.sessionId,
     seconds,
     mediaType: params.mediaType,
-    title: params.title,
+    title,
+    mediaId,
     country,
   });
 
@@ -533,9 +618,9 @@ export async function recordWatch(params: {
       db.prepare(`UPDATE analytics_stats SET value = value + ? WHERE name = '${statName}'`).bind(seconds),
       db
         .prepare(
-          "INSERT INTO analytics_titles (id, title, media_type, watch_seconds, view_count) VALUES (?, ?, ?, ?, 1) ON CONFLICT(id) DO UPDATE SET watch_seconds = watch_seconds + ?, view_count = view_count + 1"
+          "INSERT INTO analytics_titles (id, title, media_type, watch_seconds, view_count) VALUES (?, ?, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET watch_seconds = watch_seconds + ?"
         )
-        .bind(params.title, params.title, params.mediaType, seconds, seconds),
+        .bind(mediaId, title, params.mediaType, seconds, seconds),
     ]);
   } catch (err) {
     console.error("[analytics] D1 watch record error:", err);

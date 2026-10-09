@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, SkipBack, SkipForward } from "lucide-react";
 import { TVShow, Season } from "@/types/media";
 import { StreamResult } from "@/types/streaming";
@@ -23,7 +22,6 @@ interface WatchTVClientProps {
 }
 
 export function WatchTVClient({ tvShow, season, episode, streamResult, seasonData }: WatchTVClientProps) {
-  const router = useRouter();
   const [activeSourceIndex, setActiveSourceIndex] = useState(streamResult.defaultSourceIndex || 0);
   const { saveProgress, markStarted, getSavedPosition } = useContinueWatching();
 
@@ -81,12 +79,6 @@ export function WatchTVClient({ tvShow, season, episode, streamResult, seasonDat
     });
   };
 
-  const handleEnded = () => {
-    if (nextEpisodeUrl) {
-      router.push(nextEpisodeUrl);
-    }
-  };
-
   const episodeTitle = currentEpData?.title || `Episode ${episode}`;
 
   return (
@@ -100,9 +92,10 @@ export function WatchTVClient({ tvShow, season, episode, streamResult, seasonDat
           activeSourceIndex={activeSourceIndex}
           onSourceChange={setActiveSourceIndex}
           onTimeUpdate={handleTimeUpdate}
-          onEnded={handleEnded}
           nextEpisodeUrl={nextEpisodeUrl}
+          nextEpisodeLabel={nextLabel}
           mediaType="tv"
+          analyticsId={`tv:${tvShow.tmdbId}:s${season}:e${episode}`}
         />
       </div>
 

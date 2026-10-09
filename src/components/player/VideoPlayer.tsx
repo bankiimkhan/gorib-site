@@ -31,7 +31,7 @@ import {
   formatAudioLabel,
 } from "@/lib/utils/languages";
 import { useLanguagePreferences } from "@/lib/hooks/useLanguagePreferences";
-import { sendAnalyticsWatch } from "@/lib/analytics/client";
+import { sendAnalyticsStart, sendAnalyticsWatch } from "@/lib/analytics/client";
 
 interface VideoPlayerProps {
   title: string;
@@ -43,8 +43,11 @@ interface VideoPlayerProps {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
   nextEpisodeUrl?: string;
+  nextEpisodeLabel?: string;
   isLive?: boolean;
   mediaType?: "movie" | "tv" | "live";
+  /** Stable content identifier used to deduplicate verified playback starts. */
+  analyticsId?: string;
 }
 
 /** Elements that must keep their own Space/Enter behaviour. */
@@ -116,8 +119,10 @@ export function VideoPlayer({
   onTimeUpdate,
   onEnded,
   nextEpisodeUrl,
+  nextEpisodeLabel,
   isLive = false,
   mediaType,
+  analyticsId,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -126,6 +131,8 @@ export function VideoPlayer({
   const settingsRef = useRef<HTMLDivElement>(null);
   const serverMenuRef = useRef<HTMLDivElement>(null);
   const audioSubsRef = useRef<HTMLDivElement>(null);
+  const analyticsStartedRef = useRef(false);
+  const resumePositionRef = useRef<number | null>(null);
 
   const [internalSourceIndex, setInternalSourceIndex] = useState(0);
   const activeSourceIndex = externalIndex !== undefined ? externalIndex : internalSourceIndex;
@@ -136,6 +143,7 @@ export function VideoPlayer({
   // Watch analytics reporting
   const resolvedMediaType: "movie" | "tv" | "live" =
     mediaType || (isLive ? "live" : title.includes("· S") || title.includes("Episode") ? "tv" : "movie");
+  const resolvedAnalyticsId = analyticsId || `${resolvedMediaType}:${title}`;
 
   // Bumped by "Retry" to reload the same source.
   const [reloadKey, setReloadKey] = useState(0);
@@ -155,10 +163,16 @@ export function VideoPlayer({
   const [showHelp, setShowHelp] = useState(false);
   const [showServerMenu, setShowServerMenu] = useState(false);
   const [showAudioSubsMenu, setShowAudioSubsMenu] = useState(false);
+  const [showNextEpisodePrompt, setShowNextEpisodePrompt] = useState(false);
 
   const handleSelectSource = (newIndex: number) => {
+    const currentPosition = videoRef.current?.currentTime;
+    if (typeof currentPosition === "number" && Number.isFinite(currentPosition) && currentPosition > 0) {
+      resumePositionRef.current = currentPosition;
+    }
     setHasError(false);
     setErrorMessage("");
+    setShowNextEpisodePrompt(false);
     if (onSourceChange) {
       onSourceChange(newIndex);
     } else {
@@ -214,21 +228,31 @@ export function VideoPlayer({
 
   // Periodic watch progress reporter for analytics
   useEffect(() => {
-    if (!isPlaying && !isEmbed) return;
+    if (!isPlaying) return;
 
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      sendAnalyticsWatch(15, resolvedMediaType, title);
+      sendAnalyticsWatch(15, resolvedMediaType, title, resolvedAnalyticsId);
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [isPlaying, isEmbed, resolvedMediaType, title]);
+  }, [isPlaying, resolvedMediaType, resolvedAnalyticsId, title]);
+
+  useEffect(() => {
+    analyticsStartedRef.current = false;
+    resumePositionRef.current = null;
+    setShowNextEpisodePrompt(false);
+  }, [resolvedAnalyticsId]);
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
 
-  // A dead live source falls through to the next one (e.g. Direct -> Proxy) before showing an error.
+  // A failed source falls through to the next available server before showing an error.
   const failSource = (message: string) => {
-    if (isLive && activeSourceIndex < sources.length - 1) {
+    const currentPosition = videoRef.current?.currentTime;
+    if (typeof currentPosition === "number" && Number.isFinite(currentPosition) && currentPosition > 0) {
+      resumePositionRef.current = currentPosition;
+    }
+    if (activeSourceIndex < sources.length - 1) {
       handleSelectSource(activeSourceIndex + 1);
       return;
     }
@@ -240,6 +264,8 @@ export function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentSource || currentSource.format === "iframe") return;
+    const resumeAt = resumePositionRef.current ?? initialTime;
+    resumePositionRef.current = null;
 
     setIsBuffering(true);
     setHasError(false);
@@ -272,8 +298,8 @@ export function VideoPlayer({
               bitrate: lvl.bitrate,
             }))
           );
-          if (initialTime > 0) {
-            video.currentTime = initialTime;
+          if (resumeAt > 0) {
+            video.currentTime = resumeAt;
           }
         });
 
@@ -353,8 +379,8 @@ export function VideoPlayer({
         hlsRef.current = hls;
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = streamUrl;
-        if (initialTime > 0) {
-          video.currentTime = initialTime;
+        if (resumeAt > 0) {
+          video.currentTime = resumeAt;
         }
       } else {
         setHasError(true);
@@ -363,8 +389,8 @@ export function VideoPlayer({
     } else {
       // Standard video file
       video.src = streamUrl;
-      if (initialTime > 0) {
-        video.currentTime = initialTime;
+      if (resumeAt > 0) {
+        video.currentTime = resumeAt;
       }
     }
 
@@ -401,6 +427,19 @@ export function VideoPlayer({
   const handleVideoError = () => {
     console.error("[Player] Video error on", currentSource?.url);
     failSource("This server couldn't load the video.");
+  };
+
+  const handlePlaybackStarted = () => {
+    setIsPlaying(true);
+    if (analyticsStartedRef.current) return;
+    analyticsStartedRef.current = true;
+    void sendAnalyticsStart(resolvedMediaType, title, resolvedAnalyticsId);
+  };
+
+  const handlePlaybackEnded = () => {
+    setIsPlaying(false);
+    if (nextEpisodeUrl) setShowNextEpisodePrompt(true);
+    onEnded?.();
   };
 
   // Live channels should start on selection. Browsers may refuse unmuted
@@ -705,14 +744,14 @@ export function VideoPlayer({
         ref={videoRef}
         poster={poster}
         playsInline
-        onPlay={() => setIsPlaying(true)}
+        onPlay={handlePlaybackStarted}
         onPause={() => setIsPlaying(false)}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onError={handleVideoError}
-        onEnded={onEnded}
+        onEnded={handlePlaybackEnded}
         onClick={togglePlay}
         onDoubleClick={toggleFullscreen}
         className="h-full w-full cursor-pointer object-contain"
@@ -741,7 +780,7 @@ export function VideoPlayer({
       )}
 
       {/* Large centre play when paused */}
-      {!isPlaying && !isBuffering && !hasError && (
+      {!isPlaying && !isBuffering && !hasError && !showNextEpisodePrompt && (
         <button
           type="button"
           onClick={togglePlay}
@@ -750,6 +789,22 @@ export function VideoPlayer({
         >
           <Play className="ml-1 h-8 w-8 fill-white sm:h-10 sm:w-10" aria-hidden="true" />
         </button>
+      )}
+
+      {showNextEpisodePrompt && nextEpisodeUrl && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/85 p-6 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-fg-muted">Episode complete</p>
+          <h3 className="mt-2 text-2xl font-bold text-white">Up next: {nextEpisodeLabel || "Next episode"}</h3>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link href={nextEpisodeUrl} className="btn btn-primary">
+              <SkipForward className="h-4 w-4 fill-black" aria-hidden="true" />
+              Play next episode
+            </Link>
+            <button type="button" onClick={() => setShowNextEpisodePrompt(false)} className="btn btn-secondary">
+              Replay this episode
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Error */}

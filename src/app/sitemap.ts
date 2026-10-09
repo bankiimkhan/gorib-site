@@ -1,44 +1,50 @@
 import { MetadataRoute } from "next";
+import { ALL_GENRES } from "@/lib/api/tmdb/genres";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gorib.lol";
 
-  return [
+  const lastModified = new Date();
+  const corePages: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${siteUrl}/movies`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: "daily",
       priority: 0.9,
     },
     {
       url: `${siteUrl}/tv`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: "daily",
       priority: 0.9,
     },
     {
-      url: `${siteUrl}/search`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${siteUrl}/watchlist`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.3,
-    },
-    {
-      url: `${siteUrl}/analytics`,
-      lastModified: new Date(),
+      url: `${siteUrl}/trending`,
+      lastModified,
       changeFrequency: "daily",
-      priority: 0.6,
+      priority: 0.8,
     },
+    {
+      url: `${siteUrl}/live-tv`,
+      lastModified,
+      changeFrequency: "hourly",
+      priority: 0.7,
+    },
+  ];
+
+  return [
+    ...corePages,
+    ...ALL_GENRES.map((genre) => ({
+      url: `${siteUrl}/genre/${genre.slug}`,
+      lastModified,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    })),
   ];
 }

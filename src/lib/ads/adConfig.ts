@@ -5,11 +5,15 @@ export interface AdSystemConfig {
   provider: AdProviderType;
   placeholderMode: PlaceholderMode;
   lazyLoadOffsetPx: number;
-  placements: Record<AdPlacement, boolean>;
-  adsense?: {
-    clientId: string;
-    slots: Partial<Record<AdPlacement, string>>;
+  frequency: {
+    /** Maximum ad requests made during a single client-side route view. */
+    maxRequestsPerPage: number;
+    /** Conservative session budget, shared across client-side navigations. */
+    maxRequestsPerSession: number;
+    /** Fixed mobile formats need an explicit, deliberate opt-in. */
+    allowMobileSticky: boolean;
   };
+  placements: Record<AdPlacement, boolean>;
   customScript?: {
     scriptUrl?: string;
     containerHtml?: string;
@@ -19,6 +23,12 @@ export interface AdSystemConfig {
      * iframe click-capture overlays must leave this false (the default).
      */
     playerSafe?: boolean;
+    /**
+     * Explicit release approval for an independently reviewed display-only tag.
+     * Opaque multitags remain off until the publisher verifies they cannot
+     * create pop-ups, redirects, overlays, or other intrusive formats.
+     */
+    displayOnlyApproved?: boolean;
   };
 }
 
@@ -31,7 +41,10 @@ export function getAdConfig(): AdSystemConfig {
     process.env.NEXT_PUBLIC_ADS_ENABLED === "true" ||
     process.env.NEXT_PUBLIC_AD_SLOTS_ENABLED === "true";
 
-  const provider = (process.env.NEXT_PUBLIC_AD_PROVIDER as AdProviderType) || "placeholder";
+  // Hilltop is the only production network configured for this application.
+  // Unknown legacy values deliberately fall back to the harmless placeholder.
+  const provider: AdProviderType =
+    process.env.NEXT_PUBLIC_AD_PROVIDER === "custom" ? "custom" : "placeholder";
   const placeholderMode =
     (process.env.NEXT_PUBLIC_AD_PLACEHOLDER_MODE as PlaceholderMode) ||
     (process.env.NODE_ENV === "production" ? "sponsor" : "debug");
@@ -43,17 +56,30 @@ export function getAdConfig(): AdSystemConfig {
     return defaultVal;
   };
 
+  const readPositiveInteger = (value: string | undefined, fallback: number): number => {
+    const parsed = Number.parseInt(value || "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+
   return {
     enabled: isGloballyEnabled,
     provider,
     placeholderMode,
     lazyLoadOffsetPx: 250,
+    frequency: {
+      // One well-placed unit performs better long-term than competing units on
+      // the same view. Both limits can be tuned only after an experiment.
+      maxRequestsPerPage: readPositiveInteger(process.env.NEXT_PUBLIC_AD_MAX_REQUESTS_PER_PAGE, 1),
+      maxRequestsPerSession: readPositiveInteger(process.env.NEXT_PUBLIC_AD_MAX_REQUESTS_PER_SESSION, 4),
+      allowMobileSticky: process.env.NEXT_PUBLIC_AD_ALLOW_MOBILE_STICKY === "true",
+    },
     placements: {
-      // Conservative initial production experiment: 4 active placements
+      // Sustainable baseline: high-intent discovery contexts only. Additional
+      // surfaces must be enabled deliberately and validated with an experiment.
       "home-top": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_HOME_TOP, true),
-      "home-feed": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_HOME_FEED, true),
+      "home-feed": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_HOME_FEED, false),
       "details-mid": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_DETAILS_MID, true),
-      "player-bottom": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_PLAYER_BOTTOM, true),
+      "player-bottom": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_PLAYER_BOTTOM, false),
       // Initially disabled placements (configurable via env flag)
       "catalog-header": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_CATALOG_HEADER, false),
       "catalog-in-feed": isPlacementEnabled(process.env.NEXT_PUBLIC_AD_CATALOG_IN_FEED, false),
@@ -64,21 +90,10 @@ export function getAdConfig(): AdSystemConfig {
       details: isPlacementEnabled(process.env.NEXT_PUBLIC_AD_DETAILS_MID, true),
       search: isPlacementEnabled(process.env.NEXT_PUBLIC_AD_SEARCH, false),
     },
-    adsense: {
-      clientId: process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || "",
-      slots: {
-        "home-top": process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME_TOP,
-        "home-feed": process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME_FEED,
-        "catalog-header": process.env.NEXT_PUBLIC_ADSENSE_SLOT_CATALOG_HEADER,
-        "details-mid": process.env.NEXT_PUBLIC_ADSENSE_SLOT_DETAILS,
-        "player-bottom": process.env.NEXT_PUBLIC_ADSENSE_SLOT_PLAYER_BOTTOM,
-        "search-banner": process.env.NEXT_PUBLIC_ADSENSE_SLOT_SEARCH,
-        "live-tv-banner": process.env.NEXT_PUBLIC_ADSENSE_SLOT_LIVE_TV,
-      },
-    },
     customScript: {
       scriptUrl: process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL,
       playerSafe: process.env.NEXT_PUBLIC_CUSTOM_AD_PLAYER_SAFE === "true",
+      displayOnlyApproved: process.env.NEXT_PUBLIC_CUSTOM_AD_DISPLAY_ONLY_APPROVED === "true",
     },
   };
 }
@@ -103,26 +118,33 @@ export const PLAYER_PAGE_PLACEMENTS: AdPlacement[] = ["player-bottom", "live-tv-
  * Whether the configured provider can load on a page hosting the video player
  * without being able to overlay, intercept, or redirect player interaction.
  * - placeholder: static markup, no third-party code.
- * - adsense: display units only (keep Auto ads / anchors off for /watch in the AdSense dashboard).
  * - custom: only when explicitly declared a banner-only tag.
  */
 export function isProviderPlayerSafe(config: AdSystemConfig = getAdConfig()): boolean {
   switch (config.provider) {
     case "custom":
       return Boolean(config.customScript?.playerSafe);
-    case "adsense":
     case "placeholder":
     default:
       return true;
   }
 }
 
+/** A custom tag must be independently approved before any slot may run it. */
+export function isProviderApproved(config: AdSystemConfig = getAdConfig()): boolean {
+  return config.provider !== "custom" || Boolean(config.customScript?.displayOnlyApproved);
+}
+
 /**
  * CSS selector listing the in-page containers a custom multitag may fill.
  * Player-page placements are never included.
  */
-export function getCustomAppendToSelector(config: AdSystemConfig = getAdConfig()): string {
-  return (Object.keys(config.placements) as AdPlacement[])
+export function getCustomAppendToSelector(
+  config: AdSystemConfig = getAdConfig(),
+  placement?: AdPlacement
+): string {
+  const placements = placement ? [placement] : (Object.keys(config.placements) as AdPlacement[]);
+  return placements
     .filter(
       (p) =>
         config.placements[p] &&

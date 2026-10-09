@@ -5,9 +5,12 @@ import { WatchlistClient } from "./WatchlistClient";
 export const metadata: Metadata = {
   title: "My List — Saved Movies & TV Shows",
   description: "Access your device-local watchlist of saved cinema and series on gorib.lol.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function WatchlistPage() {
   return <WatchlistClient />;
 }
-

@@ -30,6 +30,23 @@ export function trackAdEvent(
     // Fail silently in unsupported environments
   }
 
+  // A standard GTM-compatible data layer is optional. This keeps ad telemetry
+  // decoupled from the product analytics endpoint and avoids sending personal
+  // identifiers or click data to a new destination by default.
+  try {
+    const dataLayer = (window as Window & { dataLayer?: Array<Record<string, unknown>> }).dataLayer;
+    if (Array.isArray(dataLayer)) {
+      dataLayer.push({
+        event: `gorib_ad_${type}`,
+        ad_placement: placement,
+        ad_provider: provider,
+        ...metadata,
+      });
+    }
+  } catch {
+    // Analytics integrations must never affect rendering.
+  }
+
   // Developer mode logging
   if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_AD_DEBUG === "true") {
     console.debug(`[AdAnalytics] ${type.toUpperCase()} on "${placement}" (${provider})`, metadata || "");

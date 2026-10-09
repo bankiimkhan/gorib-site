@@ -3,9 +3,11 @@ import {
   getAnalyticsSummary,
   recordPing,
   recordLeave,
+  recordStart,
   recordWatch,
 } from "@/lib/analytics/store";
 import { detectCountryFromHeaders } from "@/lib/analytics/countries";
+import { ANALYTICS_SESSION_COOKIE, hasAnalyticsAccess } from "@/lib/analytics/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,10 @@ const NO_CACHE_HEADERS = {
 };
 
 export async function GET(req: NextRequest) {
+  if (!(await hasAnalyticsAccess(req.cookies.get(ANALYTICS_SESSION_COOKIE)?.value))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_CACHE_HEADERS });
+  }
+
   try {
     const url = new URL(req.url);
     const queryCountry = url.searchParams.get("country");
@@ -44,11 +50,17 @@ export async function POST(req: NextRequest) {
       seconds,
       mediaType,
       title,
+      mediaId,
     } = body || {};
 
+    // Cloudflare's edge header is authoritative when available; the browser
+    // hint is only a fallback for local development and non-Cloudflare hosts.
+    const edgeCountry = req.headers.get("cf-ipcountry")?.trim().toUpperCase();
     const detectedCountry =
-      typeof country === "string" && country.length === 2
-        ? country
+      edgeCountry && /^[A-Z]{2}$/.test(edgeCountry)
+        ? edgeCountry
+        : typeof country === "string" && /^[A-Za-z]{2}$/.test(country)
+        ? country.toUpperCase()
         : detectCountryFromHeaders(req.headers);
 
     if (action === "leave") {
@@ -66,6 +78,21 @@ export async function POST(req: NextRequest) {
           seconds,
           mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
           title: typeof title === "string" ? title : "Unknown Title",
+          mediaId: typeof mediaId === "string" ? mediaId : undefined,
+          country: detectedCountry,
+        });
+      }
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
+    }
+
+    if (action === "start") {
+      if (typeof visitorId === "string" && typeof sessionId === "string") {
+        await recordStart({
+          visitorId,
+          sessionId,
+          mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
+          title: typeof title === "string" ? title : "Unknown Title",
+          mediaId: typeof mediaId === "string" ? mediaId : undefined,
           country: detectedCountry,
         });
       }
@@ -74,13 +101,13 @@ export async function POST(req: NextRequest) {
 
     // Default: ping
     if (typeof visitorId === "string" && typeof sessionId === "string") {
-      const result = await recordPing({
+      await recordPing({
         visitorId,
         sessionId,
         country: detectedCountry,
         isReturning: Boolean(isReturning),
       });
-      return NextResponse.json(result, { headers: NO_CACHE_HEADERS });
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
     }
 
     return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });

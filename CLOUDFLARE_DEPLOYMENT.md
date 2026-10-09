@@ -40,6 +40,9 @@ pnpm wrangler secret put TMDB_API_KEY
 
 # (Optional) If using custom streaming providers:
 pnpm wrangler secret put STREAMING_API_KEY
+
+# Required to open the private /analytics dashboard. Use a long, random value.
+pnpm wrangler secret put ANALYTICS_ADMIN_TOKEN
 ```
 
 For local testing with `pnpm preview` or `pnpm wrangler dev`, copy `.dev.vars.example` to `.dev.vars`:
@@ -100,6 +103,7 @@ Add these under **Settings** > **Secrets and variables** > **Actions**:
 | `CLOUDFLARE_API_TOKEN` | Yes | Authenticates `wrangler deploy`. Use the **Edit Cloudflare Workers** template, or a custom token with the *Workers Scripts: Edit* permission. |
 | `CLOUDFLARE_ACCOUNT_ID` | Yes | Target account. Found on the Cloudflare dashboard sidebar or via `pnpm wrangler whoami`. |
 | `TMDB_API_KEY` | Recommended | The home page is prerendered (`revalidate = 3600`), so it fetches TMDB during the build. Without this secret the build bakes in mock data until the first runtime revalidation. |
+| `ANALYTICS_ADMIN_TOKEN` | Required for private analytics | Owner-only token for `/analytics` and analytics read APIs. Set it as a Cloudflare Worker secret with `wrangler secret put`; do not expose it as a `NEXT_PUBLIC_*` value. |
 
 Build-time settings that are **not** secret (`NEXT_PUBLIC_SITE_URL`,
 `STREAMING_PROVIDER`, and friends) are declared in the workflow's `env:` block.

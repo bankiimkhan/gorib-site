@@ -8,6 +8,9 @@ describe("AdSlot Component", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    sessionStorage.clear();
+    delete process.env.NEXT_PUBLIC_AD_MAX_REQUESTS_PER_PAGE;
+    delete process.env.NEXT_PUBLIC_AD_MAX_REQUESTS_PER_SESSION;
   });
 
   afterEach(() => {
@@ -43,22 +46,11 @@ describe("AdSlot Component", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders Google AdSense unit when NEXT_PUBLIC_AD_PROVIDER is adsense and clientId is set", () => {
-    process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
-    process.env.NEXT_PUBLIC_AD_PROVIDER = "adsense";
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID = "ca-pub-123456789";
-
-    const { container } = render(<AdSlot placement="home-top" priority />);
-    expect(container.firstChild).not.toBeNull();
-    const ins = container.querySelector("ins.adsbygoogle");
-    expect(ins).not.toBeNull();
-    expect(ins?.getAttribute("data-ad-client")).toBe("ca-pub-123456789");
-  });
-
   it("renders custom programmatic container when NEXT_PUBLIC_AD_PROVIDER is custom", () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_PROVIDER = "custom";
     process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL = "https://unfoldedtrade.com/test";
+    process.env.NEXT_PUBLIC_CUSTOM_AD_DISPLAY_ONLY_APPROVED = "true";
 
     const { container } = render(<AdSlot placement="home-top" priority />);
     expect(container.firstChild).not.toBeNull();

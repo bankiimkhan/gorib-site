@@ -59,6 +59,7 @@ export function WatchMovieClient({ movie, streamResult }: WatchMovieClientProps)
           onSourceChange={setActiveSourceIndex}
           onTimeUpdate={handleTimeUpdate}
           mediaType="movie"
+          analyticsId={`movie:${movie.tmdbId}`}
         />
       </div>
 

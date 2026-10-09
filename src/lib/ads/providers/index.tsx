@@ -1,16 +1,17 @@
 import React from "react";
 import { AdPlacement, AdProviderType, PlaceholderMode } from "../types";
 import { PlaceholderProvider } from "./PlaceholderProvider";
-import { AdSenseProvider } from "./AdSenseProvider";
 import { CustomScriptProvider } from "./CustomScriptProvider";
 
-export { PlaceholderProvider, AdSenseProvider, CustomScriptProvider };
+export { PlaceholderProvider, CustomScriptProvider };
 
 interface AdProviderRendererProps {
   placement: AdPlacement;
   provider: AdProviderType;
   placeholderMode: PlaceholderMode;
   className?: string;
+  /** The provider has confirmed that this slot contains a creative. */
+  onFilled?: () => void;
   /** Called when the slot cannot be filled (blocked, failed, no inventory) so the host can collapse it. */
   onUnfilled?: () => void;
 }
@@ -20,13 +21,12 @@ export function AdProviderRenderer({
   provider,
   placeholderMode,
   className = "",
+  onFilled,
   onUnfilled,
 }: AdProviderRendererProps) {
   switch (provider) {
-    case "adsense":
-      return <AdSenseProvider placement={placement} className={className} onUnfilled={onUnfilled} />;
     case "custom":
-      return <CustomScriptProvider placement={placement} className={className} onUnfilled={onUnfilled} />;
+      return <CustomScriptProvider placement={placement} className={className} onFilled={onFilled} onUnfilled={onUnfilled} />;
     case "placeholder":
     default:
       return (

@@ -144,7 +144,8 @@ export async function sendAnalyticsPing(action: "ping" | "leave" = "ping") {
 export async function sendAnalyticsWatch(
   seconds: number,
   mediaType: "movie" | "tv" | "live",
-  title: string
+  title: string,
+  mediaId?: string
 ) {
   if (typeof window === "undefined" || seconds <= 0) return;
   const visitorId = getVisitorId();
@@ -167,7 +168,38 @@ export async function sendAnalyticsWatch(
     seconds,
     mediaType,
     title,
+    mediaId,
     country,
+  });
+
+  try {
+    await fetch("/api/analytics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      cache: "no-store",
+    });
+  } catch {
+    // Offline/error
+  }
+}
+
+/** Record one verified playback start per title and browser session. */
+export async function sendAnalyticsStart(
+  mediaType: "movie" | "tv" | "live",
+  title: string,
+  mediaId?: string
+) {
+  if (typeof window === "undefined") return;
+
+  const payload = JSON.stringify({
+    action: "start",
+    visitorId: getVisitorId(),
+    sessionId: getSessionId(),
+    mediaType,
+    title,
+    mediaId,
+    country: detectClientCountry(),
   });
 
   try {

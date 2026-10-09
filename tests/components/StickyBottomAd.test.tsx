@@ -15,6 +15,7 @@ describe("StickyBottomAd Component", () => {
     process.env = { ...originalEnv };
     mockPathname = "/";
     sessionStorage.clear();
+    delete process.env.NEXT_PUBLIC_AD_ALLOW_MOBILE_STICKY;
   });
 
   afterEach(() => {
@@ -38,6 +39,7 @@ describe("StickyBottomAd Component", () => {
   it("renders mobile sticky banner when ads and placement are active", () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_MOBILE_STICKY = "true";
+    process.env.NEXT_PUBLIC_AD_ALLOW_MOBILE_STICKY = "true";
 
     const { container } = render(<StickyBottomAd />);
     expect(container.firstChild).not.toBeNull();
@@ -48,6 +50,7 @@ describe("StickyBottomAd Component", () => {
   it("dismisses sticky banner and sets sessionStorage when close button is clicked", () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_MOBILE_STICKY = "true";
+    process.env.NEXT_PUBLIC_AD_ALLOW_MOBILE_STICKY = "true";
 
     const { container, getByLabelText } = render(<StickyBottomAd />);
     const closeBtn = getByLabelText("Dismiss advertisement");
@@ -60,6 +63,7 @@ describe("StickyBottomAd Component", () => {
   it("automatically hides on /watch routes to avoid covering player controls", () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_MOBILE_STICKY = "true";
+    process.env.NEXT_PUBLIC_AD_ALLOW_MOBILE_STICKY = "true";
     mockPathname = "/watch/movie/123";
 
     const { container } = render(<StickyBottomAd />);

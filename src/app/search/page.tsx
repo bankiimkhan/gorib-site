@@ -6,6 +6,10 @@ import { PosterGridSkeleton } from "@/components/common/Skeleton";
 export const metadata: Metadata = {
   title: "Search Movies & TV Shows",
   description: "Find movies, series, actors, and directors across the gorib.lol catalog.",
+  robots: {
+    index: false,
+    follow: true,
+  },
 };
 
 export default function SearchPage() {
