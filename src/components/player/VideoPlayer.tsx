@@ -132,6 +132,8 @@ export function VideoPlayer({
   const serverMenuRef = useRef<HTMLDivElement>(null);
   const audioSubsRef = useRef<HTMLDivElement>(null);
   const analyticsStartedRef = useRef(false);
+  const lastTrackedPositionRef = useRef<number | null>(null);
+  const pendingWatchSecondsRef = useRef(0);
   const resumePositionRef = useRef<number | null>(null);
 
   const [internalSourceIndex, setInternalSourceIndex] = useState(0);
@@ -226,22 +228,26 @@ export function VideoPlayer({
     }
   }, [activeSubtitleIndex, availableSubtitles]);
 
-  // Periodic watch progress reporter for analytics
+  // Report measured media progression, not wall-clock time. This excludes
+  // buffering, pauses, hidden tabs, and forward seeks from watch minutes.
+  const flushMeasuredWatchTime = useCallback(() => {
+    const wholeSeconds = Math.floor(pendingWatchSecondsRef.current);
+    if (wholeSeconds <= 0) return;
+    pendingWatchSecondsRef.current -= wholeSeconds;
+    void sendAnalyticsWatch(wholeSeconds, resolvedMediaType, title, resolvedAnalyticsId);
+  }, [resolvedAnalyticsId, resolvedMediaType, title]);
+
   useEffect(() => {
-    if (!isPlaying) return;
-
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      sendAnalyticsWatch(15, resolvedMediaType, title, resolvedAnalyticsId);
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, resolvedMediaType, resolvedAnalyticsId, title]);
+    return () => flushMeasuredWatchTime();
+  }, [flushMeasuredWatchTime]);
 
   useEffect(() => {
     analyticsStartedRef.current = false;
+    lastTrackedPositionRef.current = null;
+    pendingWatchSecondsRef.current = 0;
     resumePositionRef.current = null;
-    setShowNextEpisodePrompt(false);
+    const resetPrompt = window.setTimeout(() => setShowNextEpisodePrompt(false), 0);
+    return () => window.clearTimeout(resetPrompt);
   }, [resolvedAnalyticsId]);
 
   const isLiveStream = isLive || (duration > 0 && !isFinite(duration)) || duration === Infinity;
@@ -406,6 +412,17 @@ export function VideoPlayer({
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (!video) return;
+    const previousPosition = lastTrackedPositionRef.current;
+    lastTrackedPositionRef.current = video.currentTime;
+    if (!video.paused && document.visibilityState === "visible" && previousPosition !== null) {
+      const delta = video.currentTime - previousPosition;
+      // timeupdate normally advances in sub-second increments. A larger jump
+      // is a seek, source switch, or stalled-tab resume—not verified viewing.
+      if (delta > 0 && delta <= 2.5) {
+        pendingWatchSecondsRef.current += delta;
+        if (pendingWatchSecondsRef.current >= 15) flushMeasuredWatchTime();
+      }
+    }
     setCurrentTime(video.currentTime);
     if (onTimeUpdate && video.duration > 0) {
       onTimeUpdate(video.currentTime, video.duration);
@@ -431,15 +448,24 @@ export function VideoPlayer({
 
   const handlePlaybackStarted = () => {
     setIsPlaying(true);
+    lastTrackedPositionRef.current = videoRef.current?.currentTime ?? null;
     if (analyticsStartedRef.current) return;
     analyticsStartedRef.current = true;
     void sendAnalyticsStart(resolvedMediaType, title, resolvedAnalyticsId);
   };
 
   const handlePlaybackEnded = () => {
+    flushMeasuredWatchTime();
+    lastTrackedPositionRef.current = null;
     setIsPlaying(false);
     if (nextEpisodeUrl) setShowNextEpisodePrompt(true);
     onEnded?.();
+  };
+
+  const handlePlaybackPaused = () => {
+    flushMeasuredWatchTime();
+    lastTrackedPositionRef.current = null;
+    setIsPlaying(false);
   };
 
   // Live channels should start on selection. Browsers may refuse unmuted
@@ -745,7 +771,7 @@ export function VideoPlayer({
         poster={poster}
         playsInline
         onPlay={handlePlaybackStarted}
-        onPause={() => setIsPlaying(false)}
+        onPause={handlePlaybackPaused}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onTimeUpdate={handleTimeUpdate}

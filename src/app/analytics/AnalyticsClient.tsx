@@ -272,34 +272,51 @@ export function AnalyticsClient() {
                 </div>
               </div>
 
-              {/* Card 5: Countries Reached */}
+              {/* Card 5: Privacy-minimised page views */}
               <div className="panel flex flex-col justify-between p-5 transition-transform hover:-translate-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span className="eyebrow text-[11px]">Countries</span>
-                  <Globe className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                  <span className="eyebrow text-[11px]">Page Views</span>
+                  <Activity className="h-4 w-4 text-fg-subtle" aria-hidden="true" />
                 </div>
                 <div className="mt-4">
                   <div className="text-2xl font-black tabular-nums text-white sm:text-3xl">
-                    {data.countries.length}
+                    {data.engagement.pageViews.toLocaleString()}
                   </div>
-                  <p className="mt-1 text-xs text-fg-muted">Global territories reached</p>
+                  <p className="mt-1 text-xs text-fg-muted">Distinct route categories / session</p>
                 </div>
               </div>
 
-              {/* Card 6: Average Watch Time */}
+              {/* Card 6: Engagement */}
               <div className="panel flex flex-col justify-between p-5 transition-transform hover:-translate-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span className="eyebrow text-[11px]">Avg Watch Session</span>
+                  <span className="eyebrow text-[11px]">Engagement Rate</span>
                   <TrendingUp className="h-4 w-4 text-success" aria-hidden="true" />
                 </div>
                 <div className="mt-4">
                   <div className="text-2xl font-black tabular-nums text-white sm:text-3xl">
-                    {data.watchedMinutes.averageMinutesPerSession} <span className="text-sm font-normal text-fg-subtle">min</span>
+                    {data.engagement.engagementRate}%
                   </div>
-                  <p className="mt-1 text-xs text-fg-muted">Per visitor session</p>
+                  <p className="mt-1 text-xs text-fg-muted">{data.engagement.engagedSessions.toLocaleString()} qualified sessions</p>
                 </div>
               </div>
             </div>
+
+            <section aria-labelledby="ad-delivery-heading" className="panel p-5 sm:p-6">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <h2 id="ad-delivery-heading" className="section-title">Ad delivery quality</h2>
+                  <p className="mt-1 text-sm text-fg-muted">
+                    {data.adPerformance.period}. Delivery diagnostics only; provider revenue must be reconciled from the ad network.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+                  <span><strong className="text-white">{data.adPerformance.requests}</strong> requests</span>
+                  <span><strong className="text-white">{data.adPerformance.fillRate}%</strong> fill</span>
+                  <span><strong className="text-white">{data.adPerformance.viewabilityRate}%</strong> viewable</span>
+                  <span><strong className="text-white">{data.adPerformance.blocked}</strong> blocked</span>
+                </div>
+              </div>
+            </section>
 
             {/* SECTION 1: Viewers Based on Countries */}
             <section aria-labelledby="countries-heading" className="space-y-6">
@@ -569,7 +586,7 @@ export function AnalyticsClient() {
                             {data.repeatingUsers.frequencyBuckets.single.toLocaleString()}
                           </div>
                           <div className="text-xs text-fg-subtle">
-                            {((data.repeatingUsers.frequencyBuckets.single / data.totalVisitors) * 100).toFixed(1)}%
+                            {data.totalVisitors > 0 ? ((data.repeatingUsers.frequencyBuckets.single / data.totalVisitors) * 100).toFixed(1) : "0.0"}%
                           </div>
                         </div>
                       </div>
@@ -592,7 +609,7 @@ export function AnalyticsClient() {
                             {data.repeatingUsers.frequencyBuckets.occasional.toLocaleString()}
                           </div>
                           <div className="text-xs text-fg-subtle">
-                            {((data.repeatingUsers.frequencyBuckets.occasional / data.totalVisitors) * 100).toFixed(1)}%
+                            {data.totalVisitors > 0 ? ((data.repeatingUsers.frequencyBuckets.occasional / data.totalVisitors) * 100).toFixed(1) : "0.0"}%
                           </div>
                         </div>
                       </div>
@@ -615,7 +632,7 @@ export function AnalyticsClient() {
                             {data.repeatingUsers.frequencyBuckets.frequent.toLocaleString()}
                           </div>
                           <div className="text-xs text-fg-subtle">
-                            {((data.repeatingUsers.frequencyBuckets.frequent / data.totalVisitors) * 100).toFixed(1)}%
+                            {data.totalVisitors > 0 ? ((data.repeatingUsers.frequencyBuckets.frequent / data.totalVisitors) * 100).toFixed(1) : "0.0"}%
                           </div>
                         </div>
                       </div>
@@ -638,7 +655,7 @@ export function AnalyticsClient() {
                             {data.repeatingUsers.frequencyBuckets.loyal.toLocaleString()}
                           </div>
                           <div className="text-xs text-fg-subtle">
-                            {((data.repeatingUsers.frequencyBuckets.loyal / data.totalVisitors) * 100).toFixed(1)}%
+                            {data.totalVisitors > 0 ? ((data.repeatingUsers.frequencyBuckets.loyal / data.totalVisitors) * 100).toFixed(1) : "0.0"}%
                           </div>
                         </div>
                       </div>

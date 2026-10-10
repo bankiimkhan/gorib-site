@@ -16,11 +16,11 @@ describe("Real-time Viewers API (/api/viewers)", () => {
     process.env.ANALYTICS_ADMIN_TOKEN = ANALYTICS_TOKEN;
   });
 
-  it("returns count of 1 to the owner when no prior sessions exist", async () => {
+  it("returns a truthful zero count to the owner when no prior sessions exist", async () => {
     const res = await GET(ownerRequest());
     const data = await res.json();
     expect(res.status).toBe(200);
-    expect(data.count).toBe(1);
+    expect(data.count).toBe(0);
   });
 
   it("registers a new session via POST without exposing count", async () => {

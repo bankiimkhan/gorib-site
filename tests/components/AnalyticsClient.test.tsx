@@ -63,6 +63,21 @@ const mockSummary = {
       },
     ],
   },
+  engagement: {
+    pageViews: 820,
+    engagedSessions: 390,
+    engagementRate: 43.3,
+  },
+  adPerformance: {
+    period: "today (UTC)",
+    requests: 80,
+    filled: 60,
+    viewable: 42,
+    unfilled: 14,
+    blocked: 6,
+    fillRate: 75,
+    viewabilityRate: 70,
+  },
   clientInfo: {
     country: "BD",
     name: "Bangladesh",

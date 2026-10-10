@@ -1,4 +1,5 @@
 import { AdEventData, AdEventType, AdPlacement, AdProviderType } from "./types";
+import { hasMeasurementConsent } from "@/lib/privacy/consent";
 
 /**
  * Dispatches privacy-conscious ad event.
@@ -10,7 +11,7 @@ export function trackAdEvent(
   provider: AdProviderType,
   metadata?: Record<string, string | number | boolean>
 ) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasMeasurementConsent()) return;
 
   const eventData: AdEventData = {
     placement,
@@ -45,6 +46,18 @@ export function trackAdEvent(
     }
   } catch {
     // Analytics integrations must never affect rendering.
+  }
+
+  // Aggregate only operational delivery signals. No visitor id, URL, title,
+  // or click target leaves the browser through this endpoint.
+  if (["request", "filled", "viewable", "unfilled", "blocked", "error"].includes(type)) {
+    void fetch("/api/ads/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, placement, provider }),
+      cache: "no-store",
+      keepalive: type === "viewable",
+    }).catch(() => {});
   }
 
   // Developer mode logging

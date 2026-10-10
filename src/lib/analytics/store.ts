@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
+  AdPerformanceStat,
   AnalyticsSummary,
   CountryViewerStat,
   RepeatingUsersStat,
@@ -7,6 +8,13 @@ import {
   TopWatchedTitle,
 } from "./types";
 import { countryCodeToFlag, getCountryName } from "./countries";
+import { getAdPerformance } from "@/lib/ads/adStore";
+
+export type AnalyticsPageType = "home" | "catalog" | "details" | "player" | "search" | "live" | "other";
+
+const EMPTY_AD_PERFORMANCE: AdPerformanceStat = {
+  period: "today (UTC)", requests: 0, filled: 0, viewable: 0, unfilled: 0, blocked: 0, fillRate: 0, viewabilityRate: 0,
+};
 
 interface D1Statement {
   bind(...values: unknown[]): D1Statement;
@@ -65,37 +73,18 @@ interface MemoryLiveSession {
   visitorId: string;
   country: string;
   lastSeen: number;
+  pageViews: number;
+  watchSeconds: number;
+  engaged: boolean;
 }
-
-const INITIAL_COUNTRY_SEEDS: { code: string; visitors: number; watchMinutes: number }[] = [
-  { code: "BD", visitors: 482, watchMinutes: 9640 },
-  { code: "IN", visitors: 395, watchMinutes: 7900 },
-  { code: "US", visitors: 264, watchMinutes: 5280 },
-  { code: "GB", visitors: 142, watchMinutes: 2840 },
-  { code: "CA", visitors: 98, watchMinutes: 1960 },
-  { code: "AU", visitors: 74, watchMinutes: 1480 },
-  { code: "AE", visitors: 61, watchMinutes: 1220 },
-  { code: "SA", visitors: 53, watchMinutes: 1060 },
-  { code: "MY", visitors: 49, watchMinutes: 980 },
-  { code: "DE", visitors: 37, watchMinutes: 740 },
-];
-
-const INITIAL_TITLES_SEED: MemoryTitle[] = [
-  { id: "m-1", title: "Interstellar", mediaType: "movie", watchSeconds: 168000, views: 184 },
-  { id: "m-2", title: "Inception", mediaType: "movie", watchSeconds: 142000, views: 156 },
-  { id: "t-1", title: "Breaking Bad", mediaType: "tv", watchSeconds: 126000, views: 139 },
-  { id: "m-3", title: "Hawa", mediaType: "movie", watchSeconds: 118000, views: 124 },
-  { id: "l-1", title: "Somoy TV Live", mediaType: "live", watchSeconds: 98000, views: 210 },
-  { id: "t-2", title: "Stranger Things", mediaType: "tv", watchSeconds: 84000, views: 96 },
-  { id: "l-2", title: "Jamuna TV Live", mediaType: "live", watchSeconds: 76000, views: 165 },
-  { id: "m-4", title: "Spider-Man: Across the Spider-Verse", mediaType: "movie", watchSeconds: 71000, views: 82 },
-];
 
 class MemoryAnalyticsStore {
   profiles = new Map<string, MemoryProfile>();
   countryStats = new Map<string, { visitors: number; watchSeconds: number }>();
   titles = new Map<string, MemoryTitle>();
   titleSessions = new Set<string>();
+  pageViewSessions = new Set<string>();
+  watchEventIds = new Set<string>();
   liveSessions = new Map<string, MemoryLiveSession>();
   stats = {
     totalVisitors: 0,
@@ -105,51 +94,17 @@ class MemoryAnalyticsStore {
     movieWatchSeconds: 0,
     tvWatchSeconds: 0,
     liveWatchSeconds: 0,
+    pageViews: 0,
+    engagedSessions: 0,
   };
-
-  constructor() {
-    this.seedDefaults();
-  }
-
-  seedDefaults() {
-    this.profiles.clear();
-    this.countryStats.clear();
-    this.titles.clear();
-    this.liveSessions.clear();
-
-    let totalVis = 0;
-    let totalWatchSec = 0;
-
-    for (const c of INITIAL_COUNTRY_SEEDS) {
-      this.countryStats.set(c.code, {
-        visitors: c.visitors,
-        watchSeconds: c.watchMinutes * 60,
-      });
-      totalVis += c.visitors;
-      totalWatchSec += c.watchMinutes * 60;
-    }
-
-    for (const t of INITIAL_TITLES_SEED) {
-      this.titles.set(t.id, { ...t });
-    }
-
-    const returning = Math.round(totalVis * 0.442);
-    this.stats = {
-      totalVisitors: totalVis,
-      returningVisitors: returning,
-      totalSessions: Math.round(totalVis * 2.3),
-      totalWatchSeconds: totalWatchSec,
-      movieWatchSeconds: Math.round(totalWatchSec * 0.58),
-      tvWatchSeconds: Math.round(totalWatchSec * 0.28),
-      liveWatchSeconds: Math.round(totalWatchSec * 0.14),
-    };
-  }
 
   clear() {
     this.profiles.clear();
     this.countryStats.clear();
     this.titles.clear();
     this.titleSessions.clear();
+    this.pageViewSessions.clear();
+    this.watchEventIds.clear();
     this.liveSessions.clear();
     this.stats = {
       totalVisitors: 0,
@@ -159,6 +114,8 @@ class MemoryAnalyticsStore {
       movieWatchSeconds: 0,
       tvWatchSeconds: 0,
       liveWatchSeconds: 0,
+      pageViews: 0,
+      engagedSessions: 0,
     };
   }
 
@@ -175,7 +132,6 @@ class MemoryAnalyticsStore {
     visitorId: string;
     sessionId: string;
     country: string;
-    isReturning?: boolean;
     now?: number;
   }) {
     const now = params.now || Date.now();
@@ -183,52 +139,85 @@ class MemoryAnalyticsStore {
 
     const country = (params.country || "US").toUpperCase();
 
+    const isNewSession = !this.liveSessions.has(params.sessionId);
     this.liveSessions.set(params.sessionId, {
       sessionId: params.sessionId,
       visitorId: params.visitorId,
       country,
       lastSeen: now,
+      pageViews: this.liveSessions.get(params.sessionId)?.pageViews || 0,
+      watchSeconds: this.liveSessions.get(params.sessionId)?.watchSeconds || 0,
+      engaged: this.liveSessions.get(params.sessionId)?.engaged || false,
     });
 
     let profile = this.profiles.get(params.visitorId);
+    const isNewVisitor = !profile;
     if (!profile) {
       profile = {
         id: params.visitorId,
         firstSeen: now,
         lastSeen: now,
-        visitCount: params.isReturning ? 2 : 1,
+        visitCount: 1,
         country,
         watchSeconds: 0,
       };
       this.profiles.set(params.visitorId, profile);
       this.stats.totalVisitors++;
-      this.stats.totalSessions++;
-      if (params.isReturning) {
-        this.stats.returningVisitors++;
-      }
-
       const c = this.countryStats.get(country) || { visitors: 0, watchSeconds: 0 };
       c.visitors++;
       this.countryStats.set(country, c);
     } else {
       profile.lastSeen = now;
-      if (now - profile.firstSeen > 1800_000) {
+    }
+
+    // A browser tab owns one session id. Counting it once avoids treating every
+    // heartbeat (or a 30-minute gap) as a new visit, and never trusts a client
+    // supplied "returning" flag.
+    if (isNewSession) {
+      this.stats.totalSessions++;
+      if (!isNewVisitor) {
         profile.visitCount++;
-        this.stats.totalSessions++;
-        if (profile.visitCount === 2) {
-          this.stats.returningVisitors++;
-        }
+        if (profile.visitCount === 2) this.stats.returningVisitors++;
       }
     }
 
     return {
-      liveViewers: Math.max(1, this.liveSessions.size),
-      totalVisitors: Math.max(1, this.stats.totalVisitors),
+      liveViewers: this.liveSessions.size,
+      totalVisitors: this.stats.totalVisitors,
     };
   }
 
   recordLeave(sessionId: string) {
     this.liveSessions.delete(sessionId);
+  }
+
+  recordPageView(sessionId: string, pageType: AnalyticsPageType): boolean {
+    const key = `${sessionId}\u0000${pageType}`;
+    if (this.pageViewSessions.has(key)) return false;
+    this.pageViewSessions.add(key);
+    this.stats.pageViews++;
+    const session = this.liveSessions.get(sessionId);
+    if (session) {
+      session.pageViews++;
+      this.markEngaged(session);
+    }
+    return true;
+  }
+
+  private markEngaged(session: MemoryLiveSession) {
+    if (session.engaged || (session.pageViews < 2 && session.watchSeconds < 30)) return;
+    session.engaged = true;
+    this.stats.engagedSessions++;
+  }
+
+  acceptWatchEvent(eventId?: string): boolean {
+    if (!eventId) return true;
+    if (this.watchEventIds.has(eventId)) return false;
+    this.watchEventIds.add(eventId);
+    // This is a development fallback only; bound retained ids to avoid an
+    // ever-growing process heap during long test/dev sessions.
+    if (this.watchEventIds.size > 20_000) this.watchEventIds.clear();
+    return true;
   }
 
   recordStart(params: {
@@ -293,6 +282,11 @@ class MemoryAnalyticsStore {
     if (profile) {
       profile.watchSeconds += seconds;
     }
+    const session = this.liveSessions.get(params.sessionId);
+    if (session) {
+      session.watchSeconds += seconds;
+      this.markEngaged(session);
+    }
 
     if (params.title) {
       const existing = this.titles.get(params.mediaId);
@@ -313,12 +307,12 @@ class MemoryAnalyticsStore {
   getSummary(currentCountry = "US"): AnalyticsSummary {
     this.pruneLiveSessions();
 
-    const liveViewers = Math.max(1, this.liveSessions.size);
-    const totalVisitors = Math.max(1, this.stats.totalVisitors);
+    const liveViewers = this.liveSessions.size;
+    const totalVisitors = this.stats.totalVisitors;
     const returningVisitors = Math.min(totalVisitors, Math.max(0, this.stats.returningVisitors));
     const newVisitors = Math.max(0, totalVisitors - returningVisitors);
     const repeatRate = totalVisitors > 0 ? Number(((returningVisitors / totalVisitors) * 100).toFixed(1)) : 0;
-    const totalSessions = Math.max(totalVisitors, this.stats.totalSessions);
+    const totalSessions = this.stats.totalSessions;
 
     const liveByCountry = new Map<string, number>();
     for (const session of this.liveSessions.values()) {
@@ -352,7 +346,7 @@ class MemoryAnalyticsStore {
       returningVisitors,
       repeatRate,
       totalSessions,
-      averageVisitsPerUser: Number((totalSessions / totalVisitors).toFixed(1)),
+      averageVisitsPerUser: totalVisitors > 0 ? Number((totalSessions / totalVisitors).toFixed(1)) : 0,
       frequencyBuckets: {
         single,
         occasional,
@@ -405,6 +399,14 @@ class MemoryAnalyticsStore {
       countries: countriesList,
       repeatingUsers,
       watchedMinutes,
+      engagement: {
+        pageViews: this.stats.pageViews,
+        // The in-memory fallback intentionally reports only verified data; D1
+        // is the source of truth for the engaged-session aggregate.
+        engagedSessions: this.stats.engagedSessions,
+        engagementRate: totalSessions > 0 ? Number(((this.stats.engagedSessions / totalSessions) * 100).toFixed(1)) : 0,
+      },
+      adPerformance: EMPTY_AD_PERFORMANCE,
       clientInfo: {
         country: currentCountry,
         name: getCountryName(currentCountry),
@@ -436,8 +438,14 @@ async function ensureD1Schema(db: D1Like): Promise<unknown> {
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('movie_watch_seconds', 0);\n" +
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('tv_watch_seconds', 0);\n" +
           "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('live_watch_seconds', 0);\n" +
+          "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('page_views', 0);\n" +
+          "INSERT OR IGNORE INTO analytics_stats (name, value) VALUES ('engaged_sessions', 0);\n" +
           "CREATE TABLE IF NOT EXISTS analytics_titles (id TEXT PRIMARY KEY, title TEXT NOT NULL, media_type TEXT NOT NULL, watch_seconds INTEGER NOT NULL DEFAULT 0, view_count INTEGER NOT NULL DEFAULT 0);\n" +
-          "CREATE TABLE IF NOT EXISTS analytics_title_sessions (session_id TEXT NOT NULL, title_id TEXT NOT NULL, PRIMARY KEY (session_id, title_id));"
+          "CREATE TABLE IF NOT EXISTS analytics_title_sessions (session_id TEXT NOT NULL, title_id TEXT NOT NULL, PRIMARY KEY (session_id, title_id));\n" +
+          "CREATE TABLE IF NOT EXISTS analytics_sessions (session_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL, started_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, country TEXT NOT NULL, page_views INTEGER NOT NULL DEFAULT 0, watch_seconds INTEGER NOT NULL DEFAULT 0, engaged INTEGER NOT NULL DEFAULT 0);\n" +
+          "CREATE INDEX IF NOT EXISTS analytics_sessions_visitor_idx ON analytics_sessions(visitor_id);\n" +
+          "CREATE TABLE IF NOT EXISTS analytics_page_views (session_id TEXT NOT NULL, page_type TEXT NOT NULL, PRIMARY KEY (session_id, page_type));\n" +
+          "CREATE TABLE IF NOT EXISTS analytics_watch_events (event_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, recorded_at INTEGER NOT NULL);"
       )
       .catch((err) => {
         d1SchemaReady = null;
@@ -451,7 +459,6 @@ export async function recordPing(params: {
   visitorId: string;
   sessionId: string;
   country?: string;
-  isReturning?: boolean;
 }): Promise<{ liveViewers: number; totalVisitors: number }> {
   const country = (params.country || "US").toUpperCase();
   const db = getWorkerEnv().VISITORS_DB;
@@ -460,7 +467,6 @@ export async function recordPing(params: {
     visitorId: params.visitorId,
     sessionId: params.sessionId,
     country,
-    isReturning: params.isReturning,
   });
 
   if (!db) {
@@ -472,38 +478,46 @@ export async function recordPing(params: {
     const now = Date.now();
 
     const existing = await db
-      .prepare("SELECT id, visit_count, last_seen FROM visitor_profiles WHERE id = ?")
+      .prepare("SELECT id, visit_count FROM visitor_profiles WHERE id = ?")
       .bind(params.visitorId)
-      .first<{ id: string; visit_count: number; last_seen: number }>();
+      .first<{ id: string; visit_count: number }>();
+
+    const sessionInsert = await db
+      .prepare("INSERT OR IGNORE INTO analytics_sessions (session_id, visitor_id, started_at, last_seen, country) VALUES (?, ?, ?, ?, ?)")
+      .bind(params.sessionId, params.visitorId, now, now, country)
+      .run();
+    const isNewSession = (sessionInsert.meta?.changes || 0) > 0;
+    const statements: D1Statement[] = [
+      db.prepare("UPDATE analytics_sessions SET last_seen = ? WHERE session_id = ?").bind(now, params.sessionId),
+    ];
 
     if (!existing) {
-      await db.batch([
+      statements.push(
         db
           .prepare(
-            "INSERT OR IGNORE INTO visitor_profiles (id, first_seen, last_seen, visit_count, country, total_watch_seconds) VALUES (?, ?, ?, ?, ?, 0)"
+            "INSERT OR IGNORE INTO visitor_profiles (id, first_seen, last_seen, visit_count, country, total_watch_seconds) VALUES (?, ?, ?, 1, ?, 0)"
           )
-          .bind(params.visitorId, now, now, params.isReturning ? 2 : 1, country),
+          .bind(params.visitorId, now, now, country),
         db
           .prepare("INSERT INTO analytics_country (country, visitors, watch_seconds) VALUES (?, 1, 0) ON CONFLICT(country) DO UPDATE SET visitors = visitors + 1")
           .bind(country),
-        db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'total_visitors'"),
-        db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'total_sessions'"),
-        ...(params.isReturning
-          ? [db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'returning_visitors'")]
-          : []),
-      ]);
-    } else if (now - existing.last_seen > 1800_000) {
+        db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'total_visitors'")
+      );
+    } else if (isNewSession) {
       const newCount = existing.visit_count + 1;
-      await db.batch([
+      statements.push(
         db
           .prepare("UPDATE visitor_profiles SET last_seen = ?, visit_count = ? WHERE id = ?")
           .bind(now, newCount, params.visitorId),
-        db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'total_sessions'"),
         ...(newCount === 2
           ? [db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'returning_visitors'")]
           : []),
-      ]);
+      );
+    } else {
+      statements.push(db.prepare("UPDATE visitor_profiles SET last_seen = ? WHERE id = ?").bind(now, params.visitorId));
     }
+    if (isNewSession) statements.push(db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'total_sessions'"));
+    await db.batch(statements);
   } catch (err) {
     console.error("[analytics] D1 ping record error:", err);
   }
@@ -513,6 +527,43 @@ export async function recordPing(params: {
 
 export async function recordLeave(sessionId: string): Promise<void> {
   memoryStore.recordLeave(sessionId);
+}
+
+/**
+ * Records a distinct route category once per browser session. The key contains
+ * no URL parameters, titles, search terms, or other user-supplied text.
+ */
+export async function recordPageView(params: {
+  visitorId: string;
+  sessionId: string;
+  country?: string;
+  pageType: AnalyticsPageType;
+}): Promise<void> {
+  await recordPing(params);
+  const db = getWorkerEnv().VISITORS_DB;
+  if (!db) {
+    memoryStore.recordPageView(params.sessionId, params.pageType);
+    return;
+  }
+
+  try {
+    await ensureD1Schema(db);
+    const inserted = await db
+      .prepare("INSERT OR IGNORE INTO analytics_page_views (session_id, page_type) VALUES (?, ?)")
+      .bind(params.sessionId, params.pageType)
+      .run();
+    if ((inserted.meta?.changes || 0) === 0) return;
+
+    memoryStore.recordPageView(params.sessionId, params.pageType);
+    await db.batch([
+      db.prepare("UPDATE analytics_sessions SET page_views = page_views + 1 WHERE session_id = ?").bind(params.sessionId),
+      db.prepare("UPDATE analytics_stats SET value = value + 1 WHERE name = 'page_views'"),
+      db.prepare("UPDATE analytics_sessions SET engaged = 1 WHERE session_id = ? AND engaged = 0 AND (page_views >= 2 OR watch_seconds >= 30)").bind(params.sessionId),
+      db.prepare("UPDATE analytics_stats SET value = value + changes() WHERE name = 'engaged_sessions'"),
+    ]);
+  } catch (err) {
+    console.error("[analytics] D1 page-view record error:", err);
+  }
 }
 
 function getMediaId(params: { mediaId?: string; mediaType: "movie" | "tv" | "live"; title: string }): string {
@@ -575,27 +626,51 @@ export async function recordWatch(params: {
   title: string;
   mediaId?: string;
   country?: string;
+  eventId?: string;
 }): Promise<void> {
   const country = (params.country || "US").toUpperCase();
+  // The route handler accepts browser batches up to one minute. Keep the
+  // store's defensive ceiling broader for trusted internal callers and
+  // backwards-compatible historical imports.
   const seconds = Math.max(1, Math.min(300, params.seconds));
   const mediaId = getMediaId(params);
   const title = params.title.trim().slice(0, 240) || "Unknown Title";
-
-  memoryStore.recordWatch({
-    visitorId: params.visitorId,
-    sessionId: params.sessionId,
-    seconds,
-    mediaType: params.mediaType,
-    title,
-    mediaId,
-    country,
-  });
+  await recordPing({ visitorId: params.visitorId, sessionId: params.sessionId, country });
 
   const db = getWorkerEnv().VISITORS_DB;
-  if (!db) return;
+  if (!db) {
+    if (!memoryStore.acceptWatchEvent(params.eventId)) return;
+    memoryStore.recordWatch({
+      visitorId: params.visitorId,
+      sessionId: params.sessionId,
+      seconds,
+      mediaType: params.mediaType,
+      title,
+      mediaId,
+      country,
+    });
+    return;
+  }
 
   try {
     await ensureD1Schema(db);
+    if (params.eventId) {
+      const event = await db
+        .prepare("INSERT OR IGNORE INTO analytics_watch_events (event_id, session_id, recorded_at) VALUES (?, ?, ?)")
+        .bind(params.eventId, params.sessionId, Date.now())
+        .run();
+      if ((event.meta?.changes || 0) === 0) return;
+    }
+    memoryStore.acceptWatchEvent(params.eventId);
+    memoryStore.recordWatch({
+      visitorId: params.visitorId,
+      sessionId: params.sessionId,
+      seconds,
+      mediaType: params.mediaType,
+      title,
+      mediaId,
+      country,
+    });
     const statName =
       params.mediaType === "movie"
         ? "movie_watch_seconds"
@@ -609,9 +684,10 @@ export async function recordWatch(params: {
         .bind(seconds, params.visitorId),
       db
         .prepare(
-          "INSERT INTO analytics_country (country, visitors, watch_seconds) VALUES (?, 1, ?) ON CONFLICT(country) DO UPDATE SET watch_seconds = watch_seconds + ?"
+          "INSERT INTO analytics_country (country, visitors, watch_seconds) VALUES (?, 0, ?) ON CONFLICT(country) DO UPDATE SET watch_seconds = watch_seconds + ?"
         )
         .bind(country, seconds, seconds),
+      db.prepare("UPDATE analytics_sessions SET watch_seconds = watch_seconds + ? WHERE session_id = ?").bind(seconds, params.sessionId),
       db
         .prepare("UPDATE analytics_stats SET value = value + ? WHERE name = 'total_watch_seconds'")
         .bind(seconds),
@@ -621,16 +697,39 @@ export async function recordWatch(params: {
           "INSERT INTO analytics_titles (id, title, media_type, watch_seconds, view_count) VALUES (?, ?, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET watch_seconds = watch_seconds + ?"
         )
         .bind(mediaId, title, params.mediaType, seconds, seconds),
+      db.prepare("UPDATE analytics_sessions SET engaged = 1 WHERE session_id = ? AND engaged = 0 AND (page_views >= 2 OR watch_seconds >= 30)").bind(params.sessionId),
+      db.prepare("UPDATE analytics_stats SET value = value + changes() WHERE name = 'engaged_sessions'"),
     ]);
   } catch (err) {
     console.error("[analytics] D1 watch record error:", err);
   }
 }
 
+async function getGlobalLiveViewers(fallback: number): Promise<number> {
+  const presence = getWorkerEnv().PRESENCE;
+  if (!presence) return fallback;
+  try {
+    const response = await presence.get(presence.idFromName("global")).fetch("https://presence/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const data = (await response.json()) as { count?: unknown };
+    return typeof data.count === "number" && data.count >= 0 ? data.count : fallback;
+  } catch (err) {
+    console.error("[analytics] global presence unavailable:", err);
+    return fallback;
+  }
+}
+
 export async function getAnalyticsSummary(currentCountry = "US"): Promise<AnalyticsSummary> {
   const db = getWorkerEnv().VISITORS_DB;
+  const [liveViewers, adPerformance] = await Promise.all([
+    getGlobalLiveViewers(memoryStore.liveSessions.size),
+    getAdPerformance(),
+  ]);
   if (!db) {
-    return memoryStore.getSummary(currentCountry);
+    return { ...memoryStore.getSummary(currentCountry), liveViewers, adPerformance };
   }
 
   try {
@@ -641,10 +740,10 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
       .all<{ name: string; value: number }>();
     const statsMap = new Map(statsRows.results.map((r) => [r.name, r.value]));
 
-    const totalVisitors = Math.max(1, statsMap.get("total_visitors") || memoryStore.stats.totalVisitors);
-    const returningVisitors = Math.max(0, statsMap.get("returning_visitors") || memoryStore.stats.returningVisitors);
+    const totalVisitors = statsMap.get("total_visitors") ?? 0;
+    const returningVisitors = statsMap.get("returning_visitors") ?? 0;
     const newVisitors = Math.max(0, totalVisitors - returningVisitors);
-    const totalSessions = Math.max(totalVisitors, statsMap.get("total_sessions") || memoryStore.stats.totalSessions);
+    const totalSessions = statsMap.get("total_sessions") ?? 0;
     const repeatRate = totalVisitors > 0 ? Number(((returningVisitors / totalVisitors) * 100).toFixed(1)) : 0;
 
     const countryRows = await db
@@ -662,7 +761,7 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
     }));
 
     if (countriesList.length === 0) {
-      return memoryStore.getSummary(currentCountry);
+      return { ...memoryStore.getSummary(currentCountry), liveViewers, adPerformance };
     }
 
     const totalWatchSec = statsMap.get("total_watch_seconds") || 0;
@@ -693,7 +792,7 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
     const loyal = Math.max(0, returningVisitors - occasional - frequent);
 
     return {
-      liveViewers: Math.max(1, memoryStore.liveSessions.size),
+      liveViewers,
       totalVisitors,
       countries: countriesList,
       repeatingUsers: {
@@ -702,7 +801,7 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
         returningVisitors,
         repeatRate,
         totalSessions,
-        averageVisitsPerUser: Number((totalSessions / totalVisitors).toFixed(1)),
+        averageVisitsPerUser: totalVisitors > 0 ? Number((totalSessions / totalVisitors).toFixed(1)) : 0,
         frequencyBuckets: {
           single: newVisitors,
           occasional,
@@ -731,6 +830,14 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
           views: t.views
         })),
       },
+      engagement: {
+        pageViews: statsMap.get("page_views") ?? 0,
+        engagedSessions: statsMap.get("engaged_sessions") ?? 0,
+        engagementRate: totalSessions > 0
+          ? Number((((statsMap.get("engaged_sessions") ?? 0) / totalSessions) * 100).toFixed(1))
+          : 0,
+      },
+      adPerformance,
       clientInfo: {
         country: currentCountry,
         name: getCountryName(currentCountry),
@@ -740,6 +847,6 @@ export async function getAnalyticsSummary(currentCountry = "US"): Promise<Analyt
     };
   } catch (err) {
     console.error("[analytics] D1 summary fetch failed, using memory:", err);
-    return memoryStore.getSummary(currentCountry);
+    return { ...memoryStore.getSummary(currentCountry), liveViewers, adPerformance };
   }
 }

@@ -129,7 +129,7 @@ const NO_CACHE_HEADERS = {
 
 function viewersResponse(count: number, total: number | null) {
   return NextResponse.json(
-    { count: Math.max(1, count), ...(total !== null && { total: Math.max(1, total) }) },
+    { count: Math.max(0, count), ...(total !== null && { total: Math.max(0, total) }) },
     { headers: NO_CACHE_HEADERS }
   );
 }

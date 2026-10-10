@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { AdSlot } from "@/components/ads/AdSlot";
 
 describe("AdSlot Component", () => {
@@ -24,12 +24,12 @@ describe("AdSlot Component", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders an accessible ad placement placeholder when ads are enabled", () => {
+  it("renders an accessible ad placement placeholder when ads are enabled", async () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_PROVIDER = "placeholder";
     const { container } = render(<AdSlot placement="home-top" priority />);
     expect(container.firstChild).not.toBeNull();
-    expect(container.textContent).toContain("Sponsored Area");
+    await waitFor(() => expect(container.textContent).toContain("Sponsored Area"));
     expect(container.textContent).toContain("home-top");
 
     const slot = container.querySelector('[data-ad-placement="home-top"]');
@@ -46,7 +46,7 @@ describe("AdSlot Component", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders custom programmatic container when NEXT_PUBLIC_AD_PROVIDER is custom", () => {
+  it("renders custom programmatic container when NEXT_PUBLIC_AD_PROVIDER is custom", async () => {
     process.env.NEXT_PUBLIC_ADS_ENABLED = "true";
     process.env.NEXT_PUBLIC_AD_PROVIDER = "custom";
     process.env.NEXT_PUBLIC_CUSTOM_AD_SCRIPT_URL = "https://unfoldedtrade.com/test";
@@ -54,7 +54,8 @@ describe("AdSlot Component", () => {
 
     const { container } = render(<AdSlot placement="home-top" priority />);
     expect(container.firstChild).not.toBeNull();
-    const customSlot = container.querySelector('[data-custom-placement="home-top"]');
-    expect(customSlot).not.toBeNull();
+    await waitFor(() => {
+      expect(container.querySelector('[data-custom-placement="home-top"]')).not.toBeNull();
+    });
   });
 });

@@ -47,12 +47,33 @@ export interface WatchedMinutesStat {
   topTitles: TopWatchedTitle[];
 }
 
+export interface EngagementStat {
+  /** One distinct route category per browser session; URLs and search terms are never stored. */
+  pageViews: number;
+  /** A session with two route categories or at least 30 seconds of verified playback. */
+  engagedSessions: number;
+  engagementRate: number;
+}
+
+export interface AdPerformanceStat {
+  period: string;
+  requests: number;
+  filled: number;
+  viewable: number;
+  unfilled: number;
+  blocked: number;
+  fillRate: number;
+  viewabilityRate: number;
+}
+
 export interface AnalyticsSummary {
   liveViewers: number;
   totalVisitors: number;
   countries: CountryViewerStat[];
   repeatingUsers: RepeatingUsersStat;
   watchedMinutes: WatchedMinutesStat;
+  engagement: EngagementStat;
+  adPerformance: AdPerformanceStat;
   clientInfo?: {
     country: string;
     name: string;

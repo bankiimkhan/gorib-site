@@ -3,8 +3,10 @@ import {
   getAnalyticsSummary,
   recordPing,
   recordLeave,
+  recordPageView,
   recordStart,
   recordWatch,
+  type AnalyticsPageType,
 } from "@/lib/analytics/store";
 import { detectCountryFromHeaders } from "@/lib/analytics/countries";
 import { ANALYTICS_SESSION_COOKIE, hasAnalyticsAccess } from "@/lib/analytics/admin";
@@ -16,6 +18,13 @@ const NO_CACHE_HEADERS = {
   Pragma: "no-cache",
   Expires: "0",
 };
+
+const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const EVENT_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+const PAGE_TYPES = new Set<AnalyticsPageType>(["home", "catalog", "details", "player", "search", "live", "other"]);
+const isValidId = (value: unknown): value is string => typeof value === "string" && ID_PATTERN.test(value);
+const isValidEventId = (value: unknown): value is string => typeof value === "string" && EVENT_ID_PATTERN.test(value);
+const isValidTitle = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= 240;
 
 export async function GET(req: NextRequest) {
   if (!(await hasAnalyticsAccess(req.cookies.get(ANALYTICS_SESSION_COOKIE)?.value))) {
@@ -46,11 +55,12 @@ export async function POST(req: NextRequest) {
       visitorId,
       sessionId,
       country,
-      isReturning,
       seconds,
       mediaType,
       title,
       mediaId,
+      eventId,
+      pageType,
     } = body || {};
 
     // Cloudflare's edge header is authoritative when available; the browser
@@ -64,53 +74,65 @@ export async function POST(req: NextRequest) {
         : detectCountryFromHeaders(req.headers);
 
     if (action === "leave") {
-      if (typeof sessionId === "string") {
+      if (isValidId(sessionId)) {
         await recordLeave(sessionId);
       }
       return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
     }
 
     if (action === "watch") {
-      if (typeof visitorId === "string" && typeof sessionId === "string" && typeof seconds === "number") {
-        await recordWatch({
-          visitorId,
-          sessionId,
-          seconds,
-          mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
-          title: typeof title === "string" ? title : "Unknown Title",
-          mediaId: typeof mediaId === "string" ? mediaId : undefined,
-          country: detectedCountry,
-        });
+      if (!isValidId(visitorId) || !isValidId(sessionId) || typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0 || seconds > 60 || !isValidTitle(title) || (eventId !== undefined && !isValidEventId(eventId))) {
+        return NextResponse.json({ error: "Invalid watch event" }, { status: 400, headers: NO_CACHE_HEADERS });
       }
-      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
-    }
-
-    if (action === "start") {
-      if (typeof visitorId === "string" && typeof sessionId === "string") {
-        await recordStart({
-          visitorId,
-          sessionId,
-          mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
-          title: typeof title === "string" ? title : "Unknown Title",
-          mediaId: typeof mediaId === "string" ? mediaId : undefined,
-          country: detectedCountry,
-        });
-      }
-      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
-    }
-
-    // Default: ping
-    if (typeof visitorId === "string" && typeof sessionId === "string") {
-      await recordPing({
+      await recordWatch({
         visitorId,
         sessionId,
+        seconds,
+        mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
+        title,
+        mediaId: typeof mediaId === "string" && mediaId.length <= 180 ? mediaId : undefined,
         country: detectedCountry,
-        isReturning: Boolean(isReturning),
+        eventId,
       });
       return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
     }
 
-    return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
+    if (action === "start") {
+      if (!isValidId(visitorId) || !isValidId(sessionId) || !isValidTitle(title)) {
+        return NextResponse.json({ error: "Invalid playback start" }, { status: 400, headers: NO_CACHE_HEADERS });
+      }
+      await recordStart({
+        visitorId,
+        sessionId,
+        mediaType: mediaType === "tv" || mediaType === "live" ? mediaType : "movie",
+        title,
+        mediaId: typeof mediaId === "string" && mediaId.length <= 180 ? mediaId : undefined,
+        country: detectedCountry,
+      });
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
+    }
+
+    if (action === "pageview") {
+      if (!isValidId(visitorId) || !isValidId(sessionId) || !PAGE_TYPES.has(pageType as AnalyticsPageType)) {
+        return NextResponse.json({ error: "Invalid page view" }, { status: 400, headers: NO_CACHE_HEADERS });
+      }
+      await recordPageView({ visitorId, sessionId, country: detectedCountry, pageType: pageType as AnalyticsPageType });
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
+    }
+
+    if (action === "ping") {
+      if (!isValidId(visitorId) || !isValidId(sessionId)) {
+        return NextResponse.json({ error: "Invalid heartbeat" }, { status: 400, headers: NO_CACHE_HEADERS });
+      }
+      await recordPing({
+        visitorId,
+        sessionId,
+        country: detectedCountry,
+      });
+      return NextResponse.json({ success: true }, { headers: NO_CACHE_HEADERS });
+    }
+
+    return NextResponse.json({ error: "Unsupported analytics action" }, { status: 400, headers: NO_CACHE_HEADERS });
   } catch (err) {
     console.error("[analytics route] POST error:", err);
     return NextResponse.json({ success: false }, { status: 500, headers: NO_CACHE_HEADERS });

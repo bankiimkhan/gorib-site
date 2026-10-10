@@ -4,6 +4,7 @@ import {
   memoryStore,
   recordPing,
   recordLeave,
+  recordPageView,
   recordStart,
   recordWatch,
   getAnalyticsSummary,
@@ -83,20 +84,36 @@ describe("Analytics Store", () => {
     await recordLeave("tab-1");
 
     const summary = await getAnalyticsSummary();
-    expect(summary.liveViewers).toBe(1);
+    expect(summary.liveViewers).toBe(0);
   });
 
-  it("tracks repeating users when isReturning is true", async () => {
+  it("derives returning users from a second server-side session", async () => {
     await recordPing({
       visitorId: "user-returning",
-      sessionId: "tab-ret",
+      sessionId: "tab-ret-1",
       country: "BD",
-      isReturning: true,
+    });
+    await recordPing({
+      visitorId: "user-returning",
+      sessionId: "tab-ret-2",
+      country: "BD",
     });
 
     const summary = await getAnalyticsSummary();
     expect(summary.repeatingUsers.returningVisitors).toBe(1);
     expect(summary.repeatingUsers.repeatRate).toBe(100);
+  });
+
+  it("deduplicates a route category per session and exposes privacy-minimised page views", async () => {
+    const event = { visitorId: "viewer-pages", sessionId: "session-pages", country: "BD", pageType: "home" as const };
+    await recordPageView(event);
+    await recordPageView(event);
+    await recordPageView({ ...event, pageType: "catalog" });
+
+    const summary = await getAnalyticsSummary("BD");
+    expect(summary.engagement.pageViews).toBe(2);
+    expect(summary.engagement.engagedSessions).toBe(1);
+    expect(summary.engagement.engagementRate).toBe(100);
   });
 
   it("records watched minutes and updates category totals and top titles", async () => {
@@ -228,5 +245,13 @@ describe("Analytics API Route (/api/analytics)", () => {
     expect(res.status).toBe(200);
     const summary = await getAnalyticsSummary("US");
     expect(summary.watchedMinutes.topTitles.find((item) => item.title === "Interstellar")?.views).toBe(1);
+  });
+
+  it("rejects malformed or unsupported public analytics events", async () => {
+    const res = await POST(new NextRequest("http://localhost:3000/api/analytics", {
+      method: "POST",
+      body: JSON.stringify({ action: "watch", visitorId: "bad", sessionId: "bad", seconds: 500 }),
+    }));
+    expect(res.status).toBe(400);
   });
 });

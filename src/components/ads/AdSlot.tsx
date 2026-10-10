@@ -14,6 +14,7 @@ import {
 import { AdProviderRenderer } from "@/lib/ads/providers";
 import { trackAdEvent } from "@/lib/ads/adAnalytics";
 import { getAdPageType, reserveAdRequest } from "@/lib/ads/adPolicy";
+import { useMeasurementConsent } from "@/lib/privacy/consent";
 
 export type { AdPlacement };
 
@@ -40,10 +41,11 @@ interface AdSlotProps {
  */
 export function AdSlot({ placement, className = "", priority = false, onPolicySuppressed }: AdSlotProps) {
   const pathname = usePathname() || "/";
+  const consent = useMeasurementConsent();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInView, setIsInView] = useState(priority);
   const [requestAllowed, setRequestAllowed] = useState(false);
-  const [decisionMade, setDecisionMade] = useState(false);
+  const decisionMadeRef = useRef(false);
   const [isPolicySuppressed, setIsPolicySuppressed] = useState(false);
   const [isFilled, setIsFilled] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -56,6 +58,7 @@ export function AdSlot({ placement, className = "", priority = false, onPolicySu
   const config = getAdConfig();
   const active =
     isPlacementActive(placement) &&
+    consent === "granted" &&
     !isCollapsed &&
     isProviderApproved(config) &&
     (!PLAYER_PAGE_PLACEMENTS.includes(placement) || isProviderPlayerSafe(config));
@@ -67,7 +70,7 @@ export function AdSlot({ placement, className = "", priority = false, onPolicySu
     if (previousPathnameRef.current === pathname) return;
     previousPathnameRef.current = pathname;
     setRequestAllowed(false);
-    setDecisionMade(false);
+    decisionMadeRef.current = false;
     setIsPolicySuppressed(false);
     setIsFilled(false);
     setIsCollapsed(false);
@@ -104,32 +107,34 @@ export function AdSlot({ placement, className = "", priority = false, onPolicySu
   // Reserve a request only when the slot approaches the viewport. This makes
   // the budget reflect meaningful content consumption rather than page loads.
   useEffect(() => {
-    if (!active || !isInView || decisionMade) return;
+    if (!active || !isInView || decisionMadeRef.current) return;
 
     const decision = reserveAdRequest(placement, pathname);
-    setDecisionMade(true);
-    if (!decision.allowed) {
-      setIsPolicySuppressed(true);
-      onPolicySuppressed?.();
-      trackAdEvent("suppressed", placement, config.provider, {
-        reason: decision.reason,
-        pageType: getAdPageType(pathname),
-      });
-      return;
-    }
+    decisionMadeRef.current = true;
+    const applyDecision = () => {
+      if (!decision.allowed) {
+        setIsPolicySuppressed(true);
+        onPolicySuppressed?.();
+        trackAdEvent("suppressed", placement, config.provider, {
+          reason: decision.reason,
+          pageType: getAdPageType(pathname),
+        });
+        return;
+      }
 
-    setRequestAllowed(true);
-    if (config.provider === "placeholder") {
-      setIsFilled(true);
-    }
-    trackAdEvent("request", placement, config.provider, {
-      pageType: getAdPageType(pathname),
-      compactViewport:
-        typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(max-width: 767px)").matches,
-    });
-  }, [active, config.provider, decisionMade, isInView, onPolicySuppressed, pathname, placement]);
+      setRequestAllowed(true);
+      if (config.provider === "placeholder") setIsFilled(true);
+      trackAdEvent("request", placement, config.provider, {
+        pageType: getAdPageType(pathname),
+        compactViewport:
+          typeof window !== "undefined" &&
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(max-width: 767px)").matches,
+      });
+    };
+    const timer = window.setTimeout(applyDecision, 0);
+    return () => window.clearTimeout(timer);
+  }, [active, config.provider, isInView, onPolicySuppressed, pathname, placement]);
 
   // Whether the reservation reached the actual viewport (not only the lazy
   // load margin). This is used to avoid collapsing already-seen content.
