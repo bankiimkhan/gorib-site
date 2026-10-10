@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { ArrowUp } from "lucide-react";
 import { Logo } from "./Logo";
-import { resetMeasurementConsent } from "@/lib/privacy/consent";
 
 const FOOTER_COLUMNS = [
   {
@@ -83,13 +82,6 @@ export function Footer() {
         <div className="mt-12 flex flex-col-reverse items-start justify-between gap-4 border-t border-line pt-6 text-xs sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} gorib.lol</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <button
-              type="button"
-              onClick={resetMeasurementConsent}
-              className="transition-colors hover:text-white"
-            >
-              Privacy choices
-            </button>
             <button
               type="button"
               onClick={scrollToTop}

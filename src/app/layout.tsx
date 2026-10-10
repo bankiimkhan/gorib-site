@@ -6,7 +6,6 @@ import { Footer } from "@/components/common/Footer";
 import { StickyBottomAd } from "@/components/ads/StickyBottomAd";
 import { AdRuntime } from "@/components/ads/AdRuntime";
 import { AnalyticsTracker } from "@/components/common/AnalyticsTracker";
-import { PrivacyChoices } from "@/components/common/PrivacyChoices";
 
 const uiFont = Inter({
   variable: "--font-ui",
@@ -72,7 +71,6 @@ export default function RootLayout({
         <StickyBottomAd />
         <AdRuntime />
         <AnalyticsTracker />
-        <PrivacyChoices />
       </body>
     </html>
   );

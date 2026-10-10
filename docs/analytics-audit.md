@@ -48,7 +48,7 @@ Scores are evidence-based for the code before this change; they do not claim to 
 
 ### Privacy and advertising
 
-- Added a first-party consent choice, a footer “Privacy choices” control, and Do Not Track support. The deployment now defaults to `NEXT_PUBLIC_PRIVACY_REQUIRE_CONSENT=true`; analytics and third-party ad tags stay off until opted in.
+- Analytics and third-party ad tags now run automatically without account, login, contact, or form data collection; browser Do Not Track remains respected. The random local browser identifier is pseudonymous (used only for deduplication), not a direct identity. Set `NEXT_PUBLIC_PRIVACY_REQUIRE_CONSENT=true` only if a jurisdiction or ad partner requires an opt-in workflow.
 - Ad event ingestion contains no visitor identifier, page URL, media title, click target, or revenue claim. It only records aggregate delivery signals.
 - Existing conservative controls are retained: player-route restrictions, display-only approval requirement, lazy request budgets, compact-screen player suppression, sticky opt-in/dismissal, and CLS-safe containers.
 
