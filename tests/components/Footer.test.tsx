@@ -28,7 +28,6 @@ describe("Footer Component", () => {
     expect(screen.getByRole("link", { name: /^tv shows$/i })).toHaveAttribute("href", "/tv");
     expect(screen.getByRole("link", { name: /live tv/i })).toHaveAttribute("href", "/live-tv");
     expect(screen.getByRole("link", { name: /my list/i })).toHaveAttribute("href", "/watchlist");
-    expect(screen.getAllByRole("link", { name: /^analytics$/i })[0]).toHaveAttribute("href", "/analytics");
   });
 
   it("renders regional cinema links", () => {
@@ -62,11 +61,11 @@ describe("Footer Component", () => {
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
 
-  it("renders analytics link and does not render removed viewer counter stats", () => {
+  it("does not expose analytics or removed viewer counter stats", () => {
     render(<Footer />);
     expect(screen.queryByText(/watching now/i)).toBeNull();
     expect(screen.queryByText(/all-time visitors/i)).toBeNull();
-    expect(screen.getAllByRole("link", { name: /analytics/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByRole("link", { name: /analytics/i })).toBeNull();
     expect(screen.queryByText(/Non-commercial educational demonstration/i)).toBeNull();
   });
 });

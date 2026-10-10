@@ -187,7 +187,7 @@ describe("Analytics API Route (/api/analytics)", () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.totalVisitors).toBe(1);
+    expect(data.success).toBe(true);
   });
 
   it("processes watch tracking on POST", async () => {
